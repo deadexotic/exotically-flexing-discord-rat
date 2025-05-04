@@ -1,4 +1,4 @@
-# 💖✨ **ExoticaLX RAT - Exotically Flexing Remote Tool** ✨💖  
+# 💖✨ **ExoticaLX RAT - Exotically Flexing DISCORD Remote Access Tool** ✨💖  
 **~ A magical, sparkly, totally-not-illegal remote access tool ~**  
 
 ⚠️ **WARNING! WARNING! WARNING!** ⚠️  
