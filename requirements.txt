@@ -1,1 +1,6 @@
-
+discord.py
+pycaw
+comtypes
+requests
+pyinstaller
+colorama
