@@ -1,6 +1,6 @@
 # 💖🎀 ExoticaLX RAT v2.0 ~ The Ultimate Discord-Powered Remote Access Tool 🎀💖  
 **~ Now faster, sneakier, and cuter than ever before! ~**  
-![example]([https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png](https://cdn.discordapp.com/attachments/1368848789514747905/1368851346651877406/eEYfbbU.png?ex=6819b9a9&is=68186829&hm=d9afbd082b657fca28d9a790eaee04590493015a32ab07bce772a1aef066805d&))
+<img  src="https://github.com/deadexotic/exotically-flexing-discord-rat/blob/main/1.jpg?raw=true">
 
 ⚠️ 🚫 **LEGAL WARNING!** 🚫 ⚠️  
 🚨 **THIS TOOL IS FOR ETHICAL, EDUCATIONAL, AND AUTHORIZED USE ONLY!** 🚨  
