@@ -20,7 +20,7 @@
 </div>
 
 <h3 align="center"> 
-  ✨ ~ Now with 200% more pink camo stealth technology ~ ✨
+  ✨ ~ Now with 200% more stealth code ~ ✨
 </h3>
 
 <div align="center">
