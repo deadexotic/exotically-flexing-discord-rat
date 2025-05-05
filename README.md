@@ -9,6 +9,10 @@
 
 ---
 
+[Python](https://img.shields.io/badge/python-3.8%2B-blue)
+![License](https://img.shields.io/github/license/deadexotic/exotically-flexing-discord-rat)
+![GitHub last commit](https://img.shields.io/github/last-commit/deadexotic/exotically-flexing-discord-rat)
+
 ## ✨🌈 **What's New in v2.0? (OMG! SO SHINY!)** 🌈✨  
 - ⚡ **Blazing Fast** - New optimized code runs smoother than ever!  
 - 🕵️‍♂️ **Enhanced Stealth** - Better AV evasion techniques!  
