@@ -31,7 +31,7 @@ def print_banner():
 
 def check_requirements():
     """Check and install required modules if needed."""
-    required_modules = ['discord.py', 'pycaw', 'comtypes', 'requests', 'pyinstaller', 'colorama']
+    required_modules = ['discord.py', 'pycaw', 'comtypes', 'requests', 'pyinstaller', 'colorama', 'ctypes', 'mss', 'pynput']
     missing_modules = []
     
     for module in required_modules:
