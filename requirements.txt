@@ -4,3 +4,4 @@ comtypes
 requests
 pyinstaller
 colorama
+curl
