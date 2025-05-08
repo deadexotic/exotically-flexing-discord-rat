@@ -3,8 +3,8 @@
 </p>
 
 <h1 align="center"> 
-  💜🌸💖 ExoticaLX RAT v2.0 💖🌸💜<br>
-  <img src="https://readme-typing-svg.demolab.com?font=Pixelify+Sans&weight=600&size=26&duration=4000&pause=1000&color=FF9FF3&center=true&vCenter=true&width=500&lines=The+Most+Kawaii+Remote+Access+Tool;Now+With+Pink+Camo+Stealth;UwU+What's+This~" alt="Typing animation">
+  💜🌸💖 ExoticaLX RAT v2.3 💖🌸💜<br>
+  <img src="https://readme-typing-svg.demolab.com?font=Pixelify+Sans&weight=600&size=26&duration=4000&pause=1000&color=FF9FF3&center=true&vCenter=true&width=500&lines=Advanced+Remote+Access+Tool;Enhanced+Pink+Camo+Stealth;Powerful+Yet+Discreet" alt="Typing animation">
 </h1>
 
 <p align="center">
@@ -20,68 +20,71 @@
 </div>
 
 <h3 align="center"> 
-  ✨ ~ Now with 200% more stealth code ~ ✨
+  ✨ ~ Enhanced stealth with improved detection evasion ~ ✨
 </h3>
 
 <div align="center">
   
 ⚠️ 🚫 **LEGAL WARNING!** 🚫 ⚠️  
 💜🚨 **FOR ETHICAL/EDUCATIONAL USE ONLY!** 🚨💜  
-🌸🚔 **UNAUTHORIZED ACCESS = BIG TROUBLE!** 🚔🌸  
+🌸🚔 **UNAUTHORIZED ACCESS IS ILLEGAL** 🚔🌸  
 
 </div>
 
 ---
 
-## 💗🦄 **What's New in v2.0?** 🦄💗
-<div style="background-color: #ffd6f4; padding: 15px; border-radius: 15px; border: 3px dotted #ce9eff;">
-
-- 🎀 **Pink Camo Engine** - New stealth algorithms with floral patterns!  
-- ✨ **Magical Builder UI** - Now with 50% more kawaii aesthetics  
-- 🛡️ **Anti-Virus Evasion** - Disguised as cute cat pictures  
-- 🧁 **Cookie Monster** - Steals all the cookies (nom nom~)  
-- 🌸 **Purple Heart Protocol** - Extra stable connections  
+## 💗 **What's New in v2.3** 💗
+<div style="background-color: #ffd6f4; padding: 15px; border-radius: 15px; border: 3px dotted #ce9eff;">  
+- 🛡️ **Upgraded AV Evasion** - Better detection avoidance with dynamic signature masking  
+- 🔧 **Bug Fixes** - Fixed keylogger functionality and stability issues  
+- 🔄 **Improved Token Security** - Enhanced protection for Discord token handling (By adding packer option)   
 
 </div>
 
 ---
 
-## 🍡 **Kawaii Command Center** 🍡
+## 🍡 **Command Center** 🍡
 <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 20px;">
 
 <div style="background: linear-gradient(145deg, #ffb6e6, #d8b4fe); padding: 15px; border-radius: 15px; width: 45%;">
 
-### 💻 **System Sorcery**
-- `!shell` - Cast command line spells  
-- `!remoteshell` - Summon reverse shell  
+### 💻 **System Control**
+- `!shell` - Execute command line operations  
+- `!remoteshell` - Establish reverse shell connection  
 - `!uacbypass` - Attempt privilege escalation  
+- `!sysinfo` - Retrieve detailed system information
 
 </div>
 
 <div style="background: linear-gradient(145deg, #ffb6e6, #d8b4fe); padding: 15px; border-radius: 15px; width: 45%;">
 
-### 📸 **Spy Magic**
-- `!webcampic` - Take secret selfies  
-- `!screenshot` - Capture screen moments  
-- `!windowstart` - Track window activity  
+### 📸 **Surveillance**
+- `!webcampic` - Capture webcam image  
+- `!screenshot` - Take screenshot of current display  
+- `!windowstart` - Begin window activity monitoring  
+- `!windowstop` - End window monitoring session
 
 </div>
 
 <div style="background: linear-gradient(145deg, #ffb6e6, #d8b4fe); padding: 15px; border-radius: 15px; width: 45%;">
 
-### 🎀 **Trolling Fun**
-- `!voice` - Make PC uwu out loud  
-- `!wallpaper` - Set cute backgrounds  
-- `!sing` - Play secret lullabies  
+### 🎀 **System Manipulation**
+- `!voice` - Text-to-speech functionality  
+- `!wallpaper` - Change desktop background  
+- `!sing` - Play audio in background  
+- `!blockinput` - Disable user input (requires admin)
 
 </div>
 
 <div style="background: linear-gradient(145deg, #ffb6e6, #d8b4fe); padding: 15px; border-radius: 15px; width: 45%;">
 
-### 🍭 **Data Collection**
-- `!steal` - Collect digital candy  
-- `!keylogger` - Track typing habits  
-- `!geolocate` - Find their location  
+### 🍭 **Data Acquisition**
+- `!steal` - Extract browser data and credentials  
+- `!startkeylogger` - Begin keystroke monitoring  
+- `!stopkeylogger` - End keystroke monitoring  
+- `!dumpkeylogger` - Retrieve logged keystrokes
+- `!clipboard` - Capture clipboard contents
+- `!history` - Retrieve browsing history
 
 </div>
 
@@ -92,12 +95,12 @@
 ## 🌸 **Installation Guide** 🌸
 <div style="background-color: #f8e1f7; padding: 15px; border-radius: 15px; border-left: 5px solid #ce9eff;">
 
-1. 💖 Get Discord bot token [here](https://discordpy.readthedocs.io)  
-2. 🌸 Add bot to your server with cute permissions  
-3. 🎀 Enable all privileged intents  
-4. ✨ Run the magical builder  
-5. 🍡 Deploy to targets  
-6. 💜 Control via secret channel  
+1. 💖 Create a Discord bot and obtain token [here](https://discordpy.readthedocs.io)  
+2. 🌸 Add bot to your server with appropriate permissions  
+3. 🎀 Enable all privileged intents in the Discord Developer Portal  
+4. ✨ Run the builder.py script to configure your payload  
+5. 🍡 Distribute the generated executable to target systems  
+6. 💜 Control via Discord commands in your private channel  
 
 </div>
 
@@ -105,24 +108,45 @@
 
 ## 💟 **Full Command List** 💟
 <details>
-<summary>✨ Click to reveal magical commands ✨</summary>
+<summary>✨ Click to view all available commands ✨</summary>
 
 ### 💖 **System Commands**  
-`!shell [command]` - Execute spells  
-`!admincheck` - Check admin status  
-`!sysinfo` - System details  
+`!shell [command]` - Execute system commands  
+`!admincheck` - Verify administrative privileges  
+`!sysinfo` - Retrieve system information  
+`!cd [directory]` - Change current directory  
+`!download [file]` - Download file from target  
+`!upload [file]` - Upload file to target  
 
-### 🌸 **Spy Features**  
-`!webcampic` - Secret photos  
-`!screenshot` - Screen capture  
+### 🌸 **Surveillance**  
+`!webcampic` - Capture webcam image  
+`!screenshot` - Capture screen  
+`!windowstart` - Begin window activity monitoring  
+`!windowstop` - End window monitoring  
+`!idletime` - Check user idle time  
 
 ### 🎀 **Data Collection**  
-`!steal` - Grab all cookies  
-`!keylogger` - Keystroke magic  
+`!steal` - Extract browser data  
+`!startkeylogger` - Begin keystroke monitoring  
+`!stopkeylogger` - End keystroke monitoring  
+`!dumpkeylogger` - Retrieve logged keystrokes  
+`!clipboard` - Capture clipboard contents  
+`!history` - Retrieve browsing history  
+`!geolocate` - Approximate target location  
 
-### 🍭 **Trolling**  
-`!voice` - Text-to-speech  
-`!wallpaper` - Change background  
+### 🍭 **System Control**  
+`!voice [text]` - Text-to-speech output  
+`!wallpaper` - Change desktop background  
+`!sing [url]` - Play YouTube audio  
+`!stopsing` - Stop audio playback  
+`!volumemax` - Set volume to maximum  
+`!volumezero` - Mute volume  
+`!blockinput` - Disable user input (admin required)  
+`!unblockinput` - Re-enable user input  
+`!write [text]` - Simulate keyboard input  
+`!message [text]` - Display message box  
+`!exit` - Terminate RAT process  
+`!kill [session/all]` - End specific or all sessions  
 
 </details>
 
@@ -131,14 +155,14 @@
 <div align="center">
 
 ## 💜 **Legal Disclaimer** 💜
-THIS IS FOR EDUCATIONAL PURPOSES ONLY!  
-MISUSE WILL RESULT IN:  
-🔒 Prison time | 💸 Heavy fines | 👮♂️ FBI visits  
+THIS SOFTWARE IS PROVIDED FOR EDUCATIONAL PURPOSES ONLY.  
+UNAUTHORIZED USE IS STRICTLY PROHIBITED AND MAY RESULT IN:  
+🔒 Criminal prosecution | 💸 Financial penalties | 👮 Law enforcement action  
 
 ## 🎀 **Support** 🎀
 💌 Telegram: [@simwiping](https://t.me/simwiping)  
 🌸 Discord: @hoaofficial  
 
-<img src="https://readme-typing-svg.demolab.com?font=Pixelify+Sans&weight=600&size=18&duration=4000&pause=1000&color=FF9FF3&center=true&vCenter=true&width=500&lines=Stay+Cute+Stay+Stealthy~;Your+Secret+Admin+Overlord+HOA+%F0%9F%92%8B" alt="Typing animation">
+<img src="https://readme-typing-svg.demolab.com?font=Pixelify+Sans&weight=600&size=18&duration=4000&pause=1000&color=FF9FF3&center=true&vCenter=true&width=500&lines=Advanced+Capabilities;Discreet+Operation;Professional+Remote+Administration" alt="Typing animation">
 
 </div>
