@@ -1,4 +1,4 @@
-# 💜 ExoticaLX RAT v2.3 💜
+# 💜 ExoticaLX RAT v2.4 💜
 
 <p align="center">
   <img src="https://github.com/deadexotic/exotically-flexing-discord-rat/blob/main/1.jpg?raw=true" width="400">
@@ -22,11 +22,12 @@
 
 <hr style="border: 2px solid #9370DB;">
 
-## 🌟 What's New in v2.3
+## 🌟 What's New in v2.4
 
-- **🛡️ Enhanced AV Evasion** - Improved detection avoidance with dynamic signature masking
-- **🔧 Bug Fixes** - Fixed keylogger functionality and resolved stability issues
-- **🔒 Improved Token Security** - Enhanced protection for Discord token handling with packer option
+- **🛡️ Enhanced AV Evasion** - Added in v2.3: Improved detection avoidance with dynamic signature masking
+- **🔧 Bug Fixes** - Added in v2.3: Fixed keylogger functionality and resolved stability issues
+- **🔒 Improved Token Security** - Enhanced protection for Discord token handling
+- **⚡ Performance Optimization** - Fixed async clogging by eliminating non-async functions in async loops
 
 ## 📋 Command Categories
 
@@ -108,30 +109,34 @@
 <div style="padding: 15px; border: 1px solid #9370DB; border-radius: 0 0 10px 10px;">
 
 ### 💻 System Commands
+
 `!shell [command]` - Execute system commands  
 `!admincheck` - Verify administrative privileges  
 `!sysinfo` - Retrieve system information  
 `!cd [directory]` - Change current directory  
 `!download [file]` - Download file from target  
-`!upload [file]` - Upload file to target  
+`!upload [file]` - Upload file to target
 
 ### 👁️ Surveillance
+
 `!webcampic` - Capture webcam image  
 `!screenshot` - Capture screen  
 `!windowstart` - Begin window activity monitoring  
 `!windowstop` - End window monitoring  
-`!idletime` - Check user idle time  
+`!idletime` - Check user idle time
 
 ### 📊 Data Collection
+
 `!steal` - Extract browser data  
 `!startkeylogger` - Begin keystroke monitoring  
 `!stopkeylogger` - End keystroke monitoring  
 `!dumpkeylogger` - Retrieve logged keystrokes  
 `!clipboard` - Capture clipboard contents  
 `!history` - Retrieve browsing history  
-`!geolocate` - Approximate target location  
+`!geolocate` - Approximate target location
 
 ### 🎮 System Control
+
 `!voice [text]` - Text-to-speech output  
 `!wallpaper` - Change desktop background  
 `!sing [url]` - Play YouTube audio  
@@ -143,7 +148,7 @@
 `!write [text]` - Simulate keyboard input  
 `!message [text]` - Display message box  
 `!exit` - Terminate RAT process  
-`!kill [session/all]` - End specific or all sessions  
+`!kill [session/all]` - End specific or all sessions
 
 </div>
 </details>
