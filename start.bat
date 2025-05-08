@@ -1,3 +1,4 @@
+REM THIS CODE IS USELESS AS OF RIGHT NOW
 @echo off
 title Exotically Flexing RAT Builder Setup
 color 0a
@@ -17,7 +18,7 @@ if %errorlevel% neq 0 (
     
     if not exist python-3.12.0-amd64.exe (
         echo [!] Failed to download Python installer. Please install Python 3.12 manually.
-        pause >nul
+        pause
         exit /b 1
     )
     
@@ -27,7 +28,7 @@ if %errorlevel% neq 0 (
     if %errorlevel% neq 0 (
         echo [!] Python installation failed. Please install Python 3.12 manually.
         del python-3.12.0-amd64.exe
-        pause >nul
+        pause
         exit /b 1
     )
     
@@ -35,8 +36,10 @@ if %errorlevel% neq 0 (
     del python-3.12.0-amd64.exe
     
     :: Refresh environment variables to recognize Python
-    setx PATH "%PATH%" >nul 2>&1
-    set PATH=%PATH%
+    call refreshenv >nul 2>&1 || (
+        echo [*] Refreshing environment variables...
+        for /f "tokens=*" %%a in ('path') do set PATH=%%a
+    )
 ) else (
     echo [+] Python is already installed.
 )
@@ -48,14 +51,14 @@ echo [*] Installing required modules...
 python -m pip install --upgrade pip
 if %errorlevel% neq 0 (
     echo [!] Failed to upgrade pip. Please check your internet connection.
-    pause >nul
+    pause
     exit /b 1
 )
 
 :: Check if requirements.txt exists
 if not exist requirements.txt (
     echo [!] requirements.txt not found. Please make sure all files are in the same directory.
-    pause >nul
+    pause
     exit /b 1
 )
 
@@ -63,13 +66,12 @@ if not exist requirements.txt (
 echo [*] Installing modules from requirements.txt...
 python -m pip install -r requirements.txt
 if %errorlevel% neq 0 (
-    echo [!] Failed to install some requirements. Please try again.
-    pause >nul
-    exit /b 1
+    echo [!] Failed to install some requirements. Continuing anyway...
+    echo [!] Some features may not work properly.
 )
 
 echo.
-echo [+] All requirements installed successfully!
+echo [+] Setup completed successfully!
 echo.
 echo [*] Starting Exotically Flexing RAT Builder...
 echo.
@@ -77,7 +79,7 @@ echo.
 :: Check if builder.py exists
 if not exist builder.py (
     echo [!] builder.py not found. Please make sure all files are in the same directory.
-    pause >nul
+    pause
     exit /b 1
 )
 
@@ -86,5 +88,5 @@ python builder.py
 
 echo.
 echo [*] Exiting...
-pause >nul
+pause
 exit /b 0
