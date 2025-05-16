@@ -24,12 +24,13 @@
 
 ## 🌟 What's New in v2.5
 
-- **🛠️ Enhanced Stability** - Fixed infinite loops and hanging issues across all operations
-- **⏱️ Timeout Protection** - Added timeouts to all network operations and long-running processes
-- **🧹 Resource Management** - Implemented proper cleanup for threads and processes
-- **🔄 Retry Logic** - Added intelligent retry mechanisms with proper limits
+- **🛠️ Enhanced Stability** - Fixed critical file truncation issues and infinite loops
+- **⏱️ Timeout Protection** - Added comprehensive timeouts to all network operations and long-running processes
+- **🧹 Resource Management** - Implemented proper cleanup for threads, processes, and file handles
+- **🔄 Fallback Mechanisms** - Added intelligent fallback systems when file operations fail
+- **🔒 File Integrity** - Added size verification to prevent data loss during file operations
+- **⚡ Performance Improvements** - Optimized browser data extraction with better error handling
 - **🛡️ Enhanced AV Evasion** - Improved detection avoidance with dynamic signature masking
-- **🔒 Improved Token Security** - Enhanced protection for Discord token handling
 
 ## 📋 Command Categories
 
@@ -179,4 +180,24 @@
   <a href="https://discord.com" style="text-decoration: none; margin: 0 15px;">
     <img src="https://img.shields.io/badge/Discord-@hqrdcore-9370DB?style=for-the-badge&logo=discord" alt="Discord">
   </a>
+</div>
+
+## 🛡️ Stability Improvements in v2.5
+
+<div style="background-color: rgba(147, 112, 219, 0.1); padding: 15px; border-radius: 10px; border-left: 4px solid #9370DB;">
+  <h3>Critical Fixes</h3>
+  <ul>
+    <li><strong>File Truncation Fix</strong> - Resolved critical issue where builder.py was truncating rat_source.py to only 317 lines</li>
+    <li><strong>File Integrity Protection</strong> - Added multiple verification steps to prevent data loss during file operations</li>
+    <li><strong>Automatic Fallbacks</strong> - Implemented fallback to main.py when rat_source.py is corrupted or truncated</li>
+  </ul>
+  
+  <h3>Performance Enhancements</h3>
+  <ul>
+    <li><strong>Timeout Protection</strong> - Added comprehensive timeouts to all network operations and long-running processes</li>
+    <li><strong>Resource Management</strong> - Implemented proper cleanup for threads, processes, and file handles</li>
+    <li><strong>Error Recovery</strong> - Enhanced error handling with intelligent recovery mechanisms</li>
+    <li><strong>Browser Data Extraction</strong> - Optimized stealer function with proper timeout protection to prevent hanging</li>
+    <li><strong>Reverse Shell Stability</strong> - Improved reliability of remote shell connections with heartbeat mechanism</li>
+  </ul>
 </div>
