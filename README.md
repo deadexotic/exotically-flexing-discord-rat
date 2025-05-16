@@ -1,4 +1,4 @@
-# 💜 ExoticaLX RAT v2.4 💜
+# 💜 ExoticaLX RAT v2.5 💜
 
 <p align="center">
   <img src="https://github.com/deadexotic/exotically-flexing-discord-rat/blob/main/1.jpg?raw=true" width="400">
@@ -22,12 +22,14 @@
 
 <hr style="border: 2px solid #9370DB;">
 
-## 🌟 What's New in v2.4
+## 🌟 What's New in v2.5
 
-- **🛡️ Enhanced AV Evasion** - Added in v2.3: Improved detection avoidance with dynamic signature masking
-- **🔧 Bug Fixes** - Added in v2.3: Fixed keylogger functionality and resolved stability issues
+- **🛠️ Enhanced Stability** - Fixed infinite loops and hanging issues across all operations
+- **⏱️ Timeout Protection** - Added timeouts to all network operations and long-running processes
+- **🧹 Resource Management** - Implemented proper cleanup for threads and processes
+- **🔄 Retry Logic** - Added intelligent retry mechanisms with proper limits
+- **🛡️ Enhanced AV Evasion** - Improved detection avoidance with dynamic signature masking
 - **🔒 Improved Token Security** - Enhanced protection for Discord token handling
-- **⚡ Performance Optimization** - Fixed async clogging by eliminating non-async functions in async loops
 
 ## 📋 Command Categories
 

